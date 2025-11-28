@@ -7,6 +7,10 @@ import 'transaction_entry_screen.dart';
 import 'inventory_screen.dart';
 import 'reports_screen.dart';
 import 'opportunities_screen.dart';
+import 'product_list_screen.dart';
+import 'transaction_list_screen.dart';
+import 'product_form_screen.dart';
+import 'transaction_form_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -38,11 +42,12 @@ class _MainDashboardState extends State<MainDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildDrawer(),
       appBar: AppBar(
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'images/logo.jpeg',
               height: 24,
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.book, color: Colors.white),
@@ -53,6 +58,12 @@ class _MainDashboardState extends State<MainDashboard> {
         ),
         backgroundColor: const Color(0xFF5c2d91),
         foregroundColor: Colors.white,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
@@ -194,6 +205,12 @@ class _MainDashboardState extends State<MainDashboard> {
               'Tulis transaksi langsung di sini',
               () => _handleManualEntry(),
             ),
+            _buildQuickAddOption(
+              Icons.add_business,
+              'Tambah Produk',
+              'Daftarkan produk baru ke inventori',
+              () => _handleAddProduct(),
+            ),
           ],
         ),
       ),
@@ -263,7 +280,22 @@ class _MainDashboardState extends State<MainDashboard> {
 
   void _handleManualEntry() {
     Navigator.pop(context);
-    _showComingSoonDialog('Form Input Manual');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TransactionFormScreen(),
+      ),
+    );
+  }
+
+  void _handleAddProduct() {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProductFormScreen(),
+      ),
+    );
   }
 
   void _showNotifications() {
@@ -351,6 +383,119 @@ class _MainDashboardState extends State<MainDashboard> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: Color(0xFF5c2d91),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'KuBuku',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Kelola Bisnis Anda',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 0;
+              });
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.inventory_2),
+            title: const Text('Kelola Produk'),
+            subtitle: const Text('Tambah, edit, hapus produk'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProductListScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long),
+            title: const Text('Kelola Transaksi'),
+            subtitle: const Text('Lihat semua transaksi'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TransactionListScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Laporan'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 2;
+              });
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.flash_on),
+            title: const Text('Peluang'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 3;
+              });
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Pengaturan'),
+            onTap: () {
+              Navigator.pop(context);
+              _showComingSoonDialog('Pengaturan');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Keluar', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(context);
+              _handleLogout();
+            },
           ),
         ],
       ),

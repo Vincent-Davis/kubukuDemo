@@ -89,6 +89,30 @@ class Transaction {
       'items': items.map((item) => item.toCreateJson()).toList(),
     };
   }
+
+  Transaction copyWith({
+    int? id,
+    String? userId,
+    TransactionType? type,
+    DateTime? timestamp,
+    double? totalAmount,
+    String? originalText,
+    String? sessionId,
+    List<TransactionItem>? items,
+    int? itemCount,
+  }) {
+    return Transaction(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      type: type ?? this.type,
+      timestamp: timestamp ?? this.timestamp,
+      totalAmount: totalAmount ?? this.totalAmount,
+      originalText: originalText ?? this.originalText,
+      sessionId: sessionId ?? this.sessionId,
+      items: items ?? this.items,
+      itemCount: itemCount ?? this.itemCount,
+    );
+  }
 }
 
 class TransactionItem {

@@ -227,7 +227,11 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
   }
 
   Widget _buildTransactionItem(Transaction transaction) {
-    final isIncome = transaction.type == TransactionType.income;
+    final isSell = transaction.type == TransactionType.sell;
+    final firstItem = transaction.items.isNotEmpty ? transaction.items.first : null;
+    final displayText = transaction.originalText ?? 
+        (firstItem != null ? firstItem.productName : 'Transaksi');
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -241,14 +245,14 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isIncome
+              color: isSell
                   ? Colors.green.withOpacity(0.1)
-                  : Colors.red.withOpacity(0.1),
+                  : Colors.orange.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-              color: isIncome ? Colors.green : Colors.red,
+              isSell ? Icons.trending_up : Icons.trending_down,
+              color: isSell ? Colors.green : Colors.orange,
               size: 20,
             ),
           ),
@@ -258,24 +262,24 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.description,
+                  displayText,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
                 ),
                 Text(
-                  _formatTime(transaction.date),
+                  _formatTime(transaction.timestamp),
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
           Text(
-            '${isIncome ? '+' : '-'}Rp ${_formatCurrency(transaction.amount)}',
+            '${isSell ? '+' : '-'}Rp ${_formatCurrency(transaction.totalAmount)}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isIncome ? Colors.green : Colors.red,
+              color: isSell ? Colors.green : Colors.orange,
             ),
           ),
         ],

@@ -32,7 +32,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildStockOverview() {
-    final lowStockProducts = widget.products.where((p) => p.stock < 5).length;
+    final lowStockProducts = widget.products.where((p) => p.currentStock < 5).length;
     final totalProducts = widget.products.length;
 
     return Container(
@@ -148,7 +148,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildProductItem(Product product) {
-    final isLowStock = product.stock < 5;
+    final isLowStock = product.currentStock < 5;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -185,10 +185,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                 ),
                 Text(
-                  'Rp ${_formatCurrency(product.price)}',
+                  'Rp ${_formatCurrency(product.defaultSellPrice)}',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
-                if (product.category != null)
+                if (product.unit.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.only(top: 4),
                     padding: const EdgeInsets.symmetric(
@@ -200,7 +200,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      product.category!,
+                      product.unit,
                       style: TextStyle(fontSize: 10, color: Colors.blue[700]),
                     ),
                   ),
@@ -217,7 +217,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Stok: ${product.stock}',
+                  'Stok: ${product.currentStock}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
