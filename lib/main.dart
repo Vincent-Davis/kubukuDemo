@@ -5,6 +5,7 @@ import 'presentation/authentication/login.dart';
 import 'screens/main_dashboard.dart';
 import 'services/product_service.dart';
 import 'services/transaction_service.dart';
+import 'services/chat_service.dart';
 
 void main() {
   runApp(const KuBukuApp());
@@ -23,6 +24,7 @@ class KuBukuApp extends StatelessWidget {
             // Initialize services with AuthController
             ProductService.setAuthController(authController);
             TransactionService.setAuthController(authController);
+            ChatService.setAuthController(authController);
             return authController;
           },
         ),

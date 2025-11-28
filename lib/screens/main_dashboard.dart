@@ -11,6 +11,7 @@ import 'product_list_screen.dart';
 import 'transaction_list_screen.dart';
 import 'product_form_screen.dart';
 import 'transaction_form_screen.dart';
+import 'ai_chat_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -65,6 +66,18 @@ class _MainDashboardState extends State<MainDashboard> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.smart_toy),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AIChatScreen(),
+                ),
+              );
+            },
+            tooltip: 'Asisten AI',
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () => _showNotifications(),
@@ -188,6 +201,12 @@ class _MainDashboardState extends State<MainDashboard> {
             ),
             const SizedBox(height: 20),
             _buildQuickAddOption(
+              Icons.smart_toy,
+              'Chat AI',
+              'Ngobrol dengan AI: "jual 5 telur 10rb"',
+              () => _handleAIChat(),
+            ),
+            _buildQuickAddOption(
               Icons.mic,
               'Rekam Suara',
               'Bilang aja: "Jual beras 5kg dapat 25 ribu"',
@@ -264,6 +283,16 @@ class _MainDashboardState extends State<MainDashboard> {
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
+      ),
+    );
+  }
+
+  void _handleAIChat() {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AIChatScreen(),
       ),
     );
   }
@@ -455,6 +484,21 @@ class _MainDashboardState extends State<MainDashboard> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const TransactionListScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.smart_toy),
+            title: const Text('Asisten AI'),
+            subtitle: const Text('Chat dengan AI untuk catat transaksi'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AIChatScreen(),
                 ),
               );
             },

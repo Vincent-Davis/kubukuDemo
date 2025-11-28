@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../services/ai_chat_service.dart';
-import '../services/chat_utils.dart';
+import '../services/chat_service.dart';
+import '../models/chat_session.dart';
+import '../models/parsed_transaction.dart';
+import '../widgets/transaction_validation_dialog.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -17,6 +19,9 @@ class _AIChatScreenState extends State<AIChatScreen>
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
+
+  // Chat session
+  ChatSession? _currentSession;
 
   // Voice recognition
   late stt.SpeechToText _speech;
@@ -32,9 +37,21 @@ class _AIChatScreenState extends State<AIChatScreen>
     super.initState();
     _speech = stt.SpeechToText();
     _initVoiceAnimation();
-    _addBotMessage(
-      'Halo! Saya asisten AI KuBuku. Tanya apa saja tentang bisnis Anda, seperti:\n\n• "Apa yang paling laris minggu ini?"\n• "Berapa keuntungan hari ini?"\n• "Produk apa yang stoknya habis?"',
-    );
+    _initializeChat();
+  }
+
+  void _initializeChat() async {
+    try {
+      // Skip session creation for now since endpoint doesn't exist
+      // _currentSession = await ChatService.createChatSession();
+      
+      // Add welcome message
+      _addBotMessage(
+        'Halo! Saya asisten AI KuBuku. Anda bisa:\n\n• Catat transaksi: "jual 5 telur seharga 10rb"\n• Tanya stok: "cek stok beras"\n• Analisa bisnis: "berapa penjualan hari ini?"',
+      );
+    } catch (e) {
+      _addBotMessage('Maaf, terjadi kesalahan saat menginisialisasi chat. Silakan coba lagi.');
+    }
   }
 
   void _initVoiceAnimation() {
@@ -440,14 +457,79 @@ class _AIChatScreenState extends State<AIChatScreen>
 
   void _handleAIResponse(String userMessage) async {
     try {
-      final response = await AIChatService.sendMessage(userMessage);
-      _addBotMessage(response);
+      // Parse message using Gemini
+      final parsedTransaction = await ChatService.parseTransaction(
+        userMessage, 
+        sessionId: _currentSession?.sessionId
+      );
+      
+      // Skip session message saving for now since endpoint doesn't exist
+      // if (_currentSession != null) {
+      //   await ChatService.addMessageToSession(
+      //     _currentSession!.sessionId, 
+      //     userMessage, 
+      //     'user'
+      //   );
+      // }
+      
+      // Handle different types of responses
+      if (parsedTransaction.isStockTransaction) {
+        // Show transaction validation dialog
+        _showTransactionValidationDialog(parsedTransaction, userMessage);
+      } else if (parsedTransaction.isStockQuery) {
+        // Handle stock queries
+        _handleStockQuery(parsedTransaction);
+      } else if (parsedTransaction.isAmarthaRelated) {
+        // Handle Amartha-related queries
+        _addBotMessage('Pertanyaan terkait Amartha sedang dalam pengembangan. Silakan hubungi customer service Amartha untuk bantuan lebih lanjut.');
+      } else {
+        // Handle general queries
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
+      }
+      
+      // Skip session message saving for now
+      // if (_currentSession != null && _messages.isNotEmpty) {
+      //   await ChatService.addMessageToSession(
+      //     _currentSession!.sessionId, 
+      //     _messages.last.text, 
+      //     'bot'
+      //   );
+      // }
     } catch (e) {
       _addBotMessage('Maaf, terjadi kesalahan. Silakan coba lagi.');
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  void _showTransactionValidationDialog(ParsedTransaction parsedTransaction, String userMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => TransactionValidationDialog(
+        parsedTransaction: parsedTransaction,
+        originalMessage: userMessage,
+      ),
+    ).then((result) {
+      if (result == true) {
+        _addBotMessage('Transaksi berhasil disimpan! Ada lagi yang mau dicatat?');
+      } else {
+        _addBotMessage('Transaksi dibatalkan. Ada yang bisa saya bantu lagi?');
+      }
+    });
+  }
+
+  void _handleStockQuery(ParsedTransaction parsedTransaction) {
+    // For now, show a simple response. This can be enhanced later.
+    final items = parsedTransaction.items;
+    if (items.isNotEmpty) {
+      final productNames = items.map((item) => item.productName).join(', ');
+      _addBotMessage('Informasi stok untuk $productNames sedang diproses. Fitur ini akan segera tersedia.');
+    } else {
+      _addBotMessage('Mohon sebutkan produk yang ingin dicek stoknya.');
     }
   }
 
@@ -532,7 +614,13 @@ class _AIChatScreenState extends State<AIChatScreen>
   }
 
   Widget _buildSuggestionChips() {
-    final suggestions = ChatUtils.getSuggestedQuestions();
+    final suggestions = [
+      'jual 5 telur seharga 10rb',
+      'beli beras 2 karung',
+      'cek stok minyak goreng',
+      'berapa penjualan hari ini?',
+      'produk apa yang laris?',
+    ];
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
