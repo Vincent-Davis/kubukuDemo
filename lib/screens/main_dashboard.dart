@@ -299,7 +299,12 @@ class _MainDashboardState extends State<MainDashboard> {
 
   void _handleVoiceEntry() {
     Navigator.pop(context);
-    _showComingSoonDialog('Fitur Rekam Suara');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AIChatScreen(),
+      ),
+    );
   }
 
   void _handlePhotoEntry() {

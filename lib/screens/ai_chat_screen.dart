@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
+import 'dart:typed_data';
 import '../services/chat_service.dart';
 import '../models/chat_session.dart';
 import '../models/parsed_transaction.dart';
@@ -14,8 +18,7 @@ class AIChatScreen extends StatefulWidget {
   State<AIChatScreen> createState() => _AIChatScreenState();
 }
 
-class _AIChatScreenState extends State<AIChatScreen>
-    with TickerProviderStateMixin {
+class _AIChatScreenState extends State<AIChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
@@ -23,24 +26,25 @@ class _AIChatScreenState extends State<AIChatScreen>
   // Chat session
   ChatSession? _currentSession;
 
-  // Voice recognition
-  late stt.SpeechToText _speech;
-  bool _isListening = false;
+  // Voice recording for transcription
+  late FlutterSoundRecorder _audioRecorder;
+  bool _isRecording = false;
+  String? _currentRecordingPath;
   bool _isLoading = false;
 
   // Image attachment (max 1)
   XFile? _attachedImage;
 
-  // Animation controllers
-  late AnimationController _voiceAnimationController;
-  late Animation<double> _voiceAnimation;
-
   @override
   void initState() {
     super.initState();
-    _speech = stt.SpeechToText();
-    _initVoiceAnimation();
+    _audioRecorder = FlutterSoundRecorder();
+    _initializeRecorder();
     _initializeChat();
+  }
+
+  Future<void> _initializeRecorder() async {
+    await _audioRecorder.openRecorder();
   }
 
   void _initializeChat() async {
@@ -55,19 +59,6 @@ class _AIChatScreenState extends State<AIChatScreen>
     } catch (e) {
       _addBotMessage('Maaf, terjadi kesalahan saat menginisialisasi chat. Silakan coba lagi.');
     }
-  }
-
-  void _initVoiceAnimation() {
-    _voiceAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _voiceAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _voiceAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
   }
 
   @override
@@ -112,7 +103,6 @@ class _AIChatScreenState extends State<AIChatScreen>
               ],
             ),
           ),
-          if (_isListening) _buildListeningIndicator(),
           _buildMessageInput(),
         ],
       ),
@@ -325,44 +315,6 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  Widget _buildListeningIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF5c2d91).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF5c2d91).withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _voiceAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _voiceAnimation.value,
-                child: Icon(
-                  Icons.mic,
-                  color: const Color(0xFF5c2d91),
-                  size: 24,
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Mendengarkan...',
-            style: TextStyle(
-              color: Color(0xFF5c2d91),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -508,19 +460,42 @@ class _AIChatScreenState extends State<AIChatScreen>
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Voice button
-                Container(
-                  decoration: BoxDecoration(
-                    color: _isListening
-                        ? Colors.red
-                        : const Color(0xFF5c2d91).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    onPressed: _toggleListening,
-                    icon: Icon(
-                      _isListening ? Icons.mic : Icons.mic_none,
-                      color: _isListening ? Colors.white : const Color(0xFF5c2d91),
+                // Voice recording button (hold to record)
+                GestureDetector(
+                  onTapDown: (_) {
+                    // Give immediate feedback when pressed
+                    if (!_isRecording && !_isLoading) {
+                      _startVoiceRecording();
+                    }
+                  },
+                  onTapUp: (_) {
+                    // Stop recording when released
+                    if (_isRecording) {
+                      _stopVoiceRecording();
+                    }
+                  },
+                  onTapCancel: () {
+                    // Also stop if user drags away
+                    if (_isRecording) {
+                      _stopVoiceRecording();
+                    }
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: _isRecording
+                          ? Colors.red
+                          : const Color(0xFF5c2d91).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: _isRecording 
+                          ? Border.all(color: Colors.red.shade300, width: 2)
+                          : null,
+                    ),
+                    child: Icon(
+                      _isRecording ? Icons.stop : Icons.mic,
+                      color: _isRecording ? Colors.white : const Color(0xFF5c2d91),
+                      size: 24,
                     ),
                   ),
                 ),
@@ -727,68 +702,6 @@ class _AIChatScreenState extends State<AIChatScreen>
     }
   }
 
-  void _toggleListening() async {
-    if (_isListening) {
-      await _stopListening();
-    } else {
-      await _startListening();
-    }
-  }
-
-  Future<void> _startListening() async {
-    try {
-      bool available = await _speech.initialize(
-        onStatus: (status) {
-          if (status == 'done' || status == 'notListening') {
-            _stopListening();
-          }
-        },
-        onError: (error) {
-          _stopListening();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${error.errorMsg}')));
-        },
-      );
-
-      if (available) {
-        setState(() {
-          _isListening = true;
-        });
-        _voiceAnimationController.repeat(reverse: true);
-
-        await _speech.listen(
-          onResult: (result) {
-            if (result.finalResult) {
-              setState(() {
-                _messageController.text = result.recognizedWords;
-              });
-              _stopListening();
-            }
-          },
-          localeId: 'id_ID', // Indonesian
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Speech recognition tidak tersedia')),
-        );
-      }
-    } catch (e) {
-      _stopListening();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error memulai speech recognition: $e')),
-      );
-    }
-  }
-
-  Future<void> _stopListening() async {
-    await _speech.stop();
-    setState(() {
-      _isListening = false;
-    });
-    _voiceAnimationController.stop();
-  }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -872,6 +785,217 @@ class _AIChatScreenState extends State<AIChatScreen>
         ],
       ),
     );
+  }
+
+  // Voice recording methods
+  Future<void> _startVoiceRecording() async {
+    try {
+      // Request permissions
+      if (await Permission.microphone.request() != PermissionStatus.granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Izin mikrofon diperlukan untuk merekam suara'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Create audio file path using timestamp
+      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+      final tempDir = Directory.systemTemp;
+      final path = '${tempDir.path}/$fileName';
+
+      // Start recording
+      await _audioRecorder.startRecorder(
+        toFile: path,
+        codec: Codec.aacADTS,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _currentRecordingPath = path;
+      });
+
+      // Show recording indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.mic, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('🎤 Merekam... Lepas untuk mengirim')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 60), // Long duration
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error memulai rekaman: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      final path = await _audioRecorder.stopRecorder();
+      
+      setState(() {
+        _isRecording = false;
+      });
+
+      // Hide recording snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (path != null && _currentRecordingPath != null) {
+        // Process the recorded audio
+        _processVoiceRecording(_currentRecordingPath!);
+      }
+      
+      _currentRecordingPath = null;
+      
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+      });
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error menghentikan rekaman: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _processVoiceRecording(String audioPath) async {
+    setState(() {
+      _messages.add(
+        ChatMessage(
+          text: 'Memproses suara...',
+          isUser: true,
+        ),
+      );
+      _isLoading = true;
+    });
+
+    _scrollToBottom();
+
+    try {
+      // Call backend voice transcription + parsing service
+      final response = await ChatService.transcribeAndParseVoice(
+        audioPath,
+        sessionId: _currentSession?.sessionId,
+      );
+
+      final transcript = response['transcript'] as String?;
+      final structuredResponse = response['structured_response'] as Map<String, dynamic>?;
+
+      if (transcript == null || transcript.isEmpty) {
+        throw Exception('Tidak ada teks yang terdeteksi dari suara');
+      }
+
+      // Update user message with transcript
+      setState(() {
+        _messages.removeLast(); // Remove "processing" message
+        _messages.add(
+          ChatMessage(
+            text: '🎤 "$transcript"',
+            isUser: true,
+          ),
+        );
+        _isLoading = false;
+      });
+
+      // Check if it's a transaction (category = "stock")
+      if (structuredResponse != null && 
+          structuredResponse['category'] == 'stock' &&
+          structuredResponse['action'] == 'create') {
+        
+        // Parse as transaction and show validation dialog
+        try {
+          final parsedTransaction = ParsedTransaction.fromJson(structuredResponse);
+          
+          final shouldSave = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => TransactionValidationDialog(
+              originalMessage: transcript,
+              parsedTransaction: parsedTransaction,
+            ),
+          );
+
+          if (shouldSave == true) {
+            setState(() {
+              _messages.add(
+                ChatMessage(
+                  text: 'Transaksi berhasil disimpan! ✅',
+                  isUser: false,
+                ),
+              );
+            });
+          } else {
+            setState(() {
+              _messages.add(
+                ChatMessage(
+                  text: 'Transaksi dibatalkan.',
+                  isUser: false,
+                ),
+              );
+            });
+          }
+        } catch (e) {
+          // If parsing fails, treat as regular chat
+          _handleRegularVoiceChatResponse(transcript, structuredResponse);
+        }
+      } else {
+        // Handle as regular chat - use transcript as the response
+        _handleRegularVoiceChatResponse(transcript, structuredResponse);
+      }
+
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _messages.removeLast(); // Remove "processing" message
+        _messages.add(
+          ChatMessage(
+            text: 'Error memproses suara: $e',
+            isUser: false,
+          ),
+        );
+      });
+    } finally {
+      // Clean up audio file
+      try {
+        final file = File(audioPath);
+        if (file.existsSync()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting audio file: $e');
+      }
+    }
+  }
+
+  void _handleRegularVoiceChatResponse(String transcript, Map<String, dynamic>? structuredResponse) {
+    setState(() {
+      _isLoading = false;
+      _messages.add(
+        ChatMessage(
+          text: transcript, // Just echo back the transcript
+          isUser: false,
+        ),
+      );
+    });
+    
+    _scrollToBottom();
   }
 
   void _showImageSourceDialog() {
@@ -1053,7 +1177,7 @@ class _AIChatScreenState extends State<AIChatScreen>
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _voiceAnimationController.dispose();
+    _audioRecorder.closeRecorder();
     super.dispose();
   }
 }

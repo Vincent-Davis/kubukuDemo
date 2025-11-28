@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
@@ -64,6 +65,69 @@ class ChatService {
       }
     } catch (e) {
       throw Exception('Error parsing transaction: $e');
+    }
+  }
+
+  /// Voice transcription and parsing
+  static Future<Map<String, dynamic>> transcribeAndParseVoice(
+    String audioPath, {
+    String? sessionId,
+  }) async {
+    try {
+      final userId = getCurrentUserId();
+      
+      // Create multipart request
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/voice/transcription/'),
+      );
+
+      // Add headers (excluding content-type as it's set by MultipartRequest)
+      if (_authController != null && _authController!.token.isNotEmpty) {
+        request.headers['Authorization'] = 'Token ${_authController!.token}';
+      }
+
+      // Add form fields
+      request.fields['user_id'] = userId;
+      if (sessionId != null) {
+        request.fields['session_id'] = sessionId;
+      }
+
+      // Add audio file
+      final audioFile = File(audioPath);
+      final bytes = await audioFile.readAsBytes();
+      
+      // Get MIME type for audio
+      final mime = lookupMimeType(audioPath) ?? "audio/mp3";
+      final normalized = normalizeMime(mime);
+      final parts = normalized.split("/");
+      final mediaType = MediaType(parts[0], parts[1]);
+      
+      final multipartFile = http.MultipartFile.fromBytes(
+        'file', // Backend expects 'file' field
+        bytes,
+        filename: 'audio.${parts[1]}',
+        contentType: mediaType,
+      );
+      
+      request.files.add(multipartFile);
+
+      // Send request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          return data; // Return full response including transcript and structured_response
+        } else {
+          throw Exception('API returned error: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        throw Exception('Failed to transcribe voice: ${response.statusCode}\nResponse: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error transcribing voice: $e');
     }
   }
 

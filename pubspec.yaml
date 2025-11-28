@@ -51,10 +51,14 @@ dependencies:
   # Media & Image
   image_picker: ^1.2.0
   http_parser: ^4.0.2
+  mime: ^1.0.5
   intl: ^0.20.2
   flutter_tts: ^4.2.0
   speech_to_text: ^7.0.0
   permission_handler: ^11.0.1
+  # record: ^5.1.2  # Temporarily removed due to compatibility issues
+  path_provider: ^2.1.4
+  flutter_sound: ^9.10.1  # Alternative for voice recording
 
   # Grouping & Lists
   grouped_list: ^5.1.2
