@@ -29,7 +29,7 @@ class AuthController extends ChangeNotifier {
   bool _isLoggedIn = false;
   String _token = '';
   User? _currentUser;
-  static const String baseUrl = 'http://127.0.0.1:8000/api/auth';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api/auth';
   static const String _tokenKey = 'auth_token';
 
   AuthController() {

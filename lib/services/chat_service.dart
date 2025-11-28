@@ -1,12 +1,21 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart'; // for lookupMimeType
 import '../controller/auth_controller.dart';
 import '../models/chat_session.dart';
 import '../models/parsed_transaction.dart';
 
 class ChatService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api';
   static AuthController? _authController;
+
+  // Normalize MIME type to ensure consistency
+  static String normalizeMime(String mime) {
+    if (mime == "image/jpg") return "image/jpeg";
+    return mime;
+  }
 
   // Set the AuthController instance
   static void setAuthController(AuthController authController) {
@@ -29,7 +38,7 @@ class ChatService {
       'Authorization': 'Token ${_authController!.token}',
   };
 
-  /// Parse message using Gemini API
+  /// Parse message using Gemini API (text only)
   static Future<ParsedTransaction> parseTransaction(String message, {String? sessionId}) async {
     try {
       final userId = getCurrentUserId();
@@ -58,6 +67,89 @@ class ChatService {
     }
   }
 
+  /// Parse transaction with image (OCR functionality)
+  static Future<ParsedTransaction> parseTransactionWithImage({
+    XFile? imageFile,
+    String? message,
+    String? sessionId,
+    Function(String)? onMimeInfo, // Callback untuk menampilkan info MIME
+  }) async {
+    try {
+      if (imageFile == null && (message == null || message.isEmpty)) {
+        throw Exception('Harus ada gambar atau pesan text');
+      }
+
+      final userId = getCurrentUserId();
+      
+      // Create multipart request
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/gemini/parse-transaction/'),
+      );
+
+      // Add headers (excluding content-type as it's set by MultipartRequest)
+      if (_authController != null && _authController!.token.isNotEmpty) {
+        request.headers['Authorization'] = 'Token ${_authController!.token}';
+      }
+
+      // Add form fields
+      request.fields['user_id'] = userId;
+      if (message != null && message.isNotEmpty) {
+        request.fields['message'] = message;
+      }
+      if (sessionId != null) {
+        request.fields['session_id'] = sessionId;
+      }
+
+      // Add image file if provided
+      if (imageFile != null) {
+        // Use XFile.readAsBytes() which works on both web and mobile
+        final bytes = await imageFile.readAsBytes();
+        
+        // Get MIME type using lookupMimeType and normalize it
+        final mime = lookupMimeType(imageFile.path) ?? "image/jpeg";
+        final normalized = normalizeMime(mime);
+        final parts = normalized.split("/");
+        
+        // Send MIME info to UI via callback
+        if (onMimeInfo != null) {
+          final fileSize = (bytes.length / 1024 / 1024).toStringAsFixed(2);
+          onMimeInfo('📷 File: ${imageFile.name}\n📷 MIME: $normalized\n📷 Size: ${fileSize}MB');
+        }
+        
+        // Create MediaType from normalized MIME
+        final mediaType = MediaType(parts[0], parts[1]);
+        
+        // EXPLICIT MIME TYPE - Match exactly what Python backend expects
+        final multipartFile = http.MultipartFile.fromBytes(
+          'image', // Field name must match backend
+          bytes,
+          filename: 'image.jpg', // Simple filename with jpg extension
+          contentType: mediaType, // Use normalized MediaType
+        );
+        
+        request.files.add(multipartFile);
+      }
+
+      // Send request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'ok') {
+          return ParsedTransaction.fromJson(data['structured_response']);
+        } else {
+          throw Exception('API returned error: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        throw Exception('Failed to parse transaction: ${response.statusCode}\nResponse: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error parsing transaction with image: $e');
+    }
+  }
+
   /// Send regular chat message (for non-transaction queries)
   static Future<String> sendChatMessage(String message) async {
     try {
@@ -72,12 +164,30 @@ class ChatService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'ok') {
-          // Try to get structured response first, fallback to raw text
+          // For regular chat, prioritize clean natural response over structured JSON
+          if (data['cleaned'] != null && data['cleaned'].toString().trim().isNotEmpty) {
+            final cleanedResponse = data['cleaned'].toString().trim();
+            // Skip if it looks like JSON (starts with { or contains "transaction":)
+            if (!cleanedResponse.startsWith('{') && !cleanedResponse.contains('"transaction"')) {
+              return cleanedResponse;
+            }
+          }
+          
+          // Fallback to raw_text
+          if (data['raw_text'] != null && data['raw_text'].toString().trim().isNotEmpty) {
+            final rawResponse = data['raw_text'].toString().trim();
+            // Skip if it looks like JSON
+            if (!rawResponse.startsWith('{') && !rawResponse.contains('"transaction"')) {
+              return rawResponse;
+            }
+          }
+          
+          // Last fallback - but try to extract just the response text from structured
           if (data['structured'] != null && data['structured']['response'] != null) {
             return data['structured']['response'];
-          } else {
-            return data['cleaned'] ?? data['raw_text'] ?? 'Tidak ada respons dari AI';
           }
+          
+          return 'Halo! Ada yang bisa saya bantu dengan bisnis Anda hari ini?';
         } else {
           throw Exception('API returned error: ${data['message'] ?? 'Unknown error'}');
         }

@@ -4,7 +4,7 @@ import '../models/product.dart';
 import '../controller/auth_controller.dart';
 
 class ProductService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api';
   static AuthController? _authController;
   
   // Set the AuthController instance

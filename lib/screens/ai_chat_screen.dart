@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../services/chat_service.dart';
 import '../models/chat_session.dart';
 import '../models/parsed_transaction.dart';
@@ -27,6 +27,9 @@ class _AIChatScreenState extends State<AIChatScreen>
   late stt.SpeechToText _speech;
   bool _isListening = false;
   bool _isLoading = false;
+
+  // Image attachment (max 1)
+  XFile? _attachedImage;
 
   // Animation controllers
   late AnimationController _voiceAnimationController;
@@ -176,27 +179,50 @@ class _AIChatScreenState extends State<AIChatScreen>
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          File(message.imagePath!),
-                          width: 200,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 200,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(12),
+                        child: kIsWeb
+                            ? FutureBuilder<Uint8List>(
+                                future: () async {
+                                  // For web, imagePath contains the bytes as base64 or direct bytes
+                                  // We'll store the bytes directly in the message
+                                  return Uint8List(0); // Placeholder - we'll fix this separately
+                                }(),
+                                builder: (context, snapshot) {
+                                  return Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.image,
+                                      color: Colors.grey,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
+                              )
+                            : FutureBuilder<Uint8List>(
+                                future: () async {
+                                  // For mobile, we'll also use bytes for consistency
+                                  return Uint8List(0); // Placeholder
+                                }(),
+                                builder: (context, snapshot) {
+                                  return Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.image,
+                                      color: Colors.grey,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
                               ),
-                              child: const Icon(
-                                Icons.broken_image,
-                                color: Colors.grey,
-                                size: 40,
-                              ),
-                            );
-                          },
-                        ),
                       ),
                     ),
                   Text(
@@ -351,87 +377,181 @@ class _AIChatScreenState extends State<AIChatScreen>
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            // Image attachment preview
+            if (_attachedImage != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.grey[200]!),
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: TextField(
-                  controller: _messageController,
-                  maxLines: null,
-                  decoration: const InputDecoration(
-                    hintText: 'Tanya tentang bisnis Anda...',
-                    hintStyle: TextStyle(color: Colors.grey),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: kIsWeb
+                          ? FutureBuilder<Uint8List>(
+                              future: _attachedImage!.readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  );
+                                } else {
+                                  return Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey[300],
+                                    child: const CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                }
+                              },
+                            )
+                          : FutureBuilder<Uint8List>(
+                              future: _attachedImage!.readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  );
+                                } else {
+                                  return Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey[300],
+                                    child: const CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                }
+                              },
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Gambar siap dikirim',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF5c2d91),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _attachedImage = null;
+                        });
+                      },
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            // Input row
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: TextField(
+                      controller: _messageController,
+                      maxLines: null,
+                      decoration: InputDecoration(
+                        hintText: _attachedImage != null 
+                            ? 'Tambah keterangan untuk gambar (opsional)...'
+                            : 'Tanya tentang bisnis Anda...',
+                        hintStyle: const TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onSubmitted: (text) => _sendMessage(),
+                      onChanged: (text) {
+                        setState(() {});
+                      },
+                    ),
                   ),
-                  onSubmitted: (text) => _sendMessage(),
-                  onChanged: (text) {
-                    setState(() {});
-                  },
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Camera button
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF5c2d91).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: _showImageSourceDialog,
-                icon: const Icon(Icons.camera_alt, color: Color(0xFF5c2d91)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Voice button
-            Container(
-              decoration: BoxDecoration(
-                color: _isListening
-                    ? Colors.red
-                    : const Color(0xFF5c2d91).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: _toggleListening,
-                icon: Icon(
-                  _isListening ? Icons.mic : Icons.mic_none,
-                  color: _isListening ? Colors.white : const Color(0xFF5c2d91),
+                const SizedBox(width: 8),
+                // Camera button
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5c2d91).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: _attachedImage == null ? _showImageSourceDialog : null,
+                    icon: Icon(
+                      Icons.camera_alt, 
+                      color: _attachedImage == null 
+                          ? const Color(0xFF5c2d91) 
+                          : Colors.grey,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Send button
-            Container(
-              decoration: BoxDecoration(
-                gradient: _messageController.text.trim().isNotEmpty
-                    ? const LinearGradient(
-                        colors: [Color(0xFF5c2d91), Color(0xFF7b4397)],
-                      )
-                    : null,
-                color: _messageController.text.trim().isEmpty
-                    ? Colors.grey[300]
-                    : null,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed:
-                    _messageController.text.trim().isNotEmpty && !_isLoading
-                    ? _sendMessage
-                    : null,
-                icon: Icon(
-                  Icons.send,
-                  color: _messageController.text.trim().isNotEmpty
-                      ? Colors.white
-                      : Colors.grey[600],
+                const SizedBox(width: 8),
+                // Voice button
+                Container(
+                  decoration: BoxDecoration(
+                    color: _isListening
+                        ? Colors.red
+                        : const Color(0xFF5c2d91).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: _toggleListening,
+                    icon: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      color: _isListening ? Colors.white : const Color(0xFF5c2d91),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                // Send button
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: (_messageController.text.trim().isNotEmpty || _attachedImage != null)
+                        ? const LinearGradient(
+                            colors: [Color(0xFF5c2d91), Color(0xFF7b4397)],
+                          )
+                        : null,
+                    color: (_messageController.text.trim().isEmpty && _attachedImage == null)
+                        ? Colors.grey[300]
+                        : null,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed:
+                        (_messageController.text.trim().isNotEmpty || _attachedImage != null) && !_isLoading
+                        ? _sendMessage
+                        : null,
+                    icon: Icon(
+                      Icons.send,
+                      color: (_messageController.text.trim().isNotEmpty || _attachedImage != null)
+                          ? Colors.white
+                          : Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -439,16 +559,36 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isLoading) return;
+    final attachedImage = _attachedImage;
+    
+    // Must have either text or image
+    if (text.isEmpty && attachedImage == null) return;
+    if (_isLoading) return;
 
+    // Clear input and attachment
+    _messageController.clear();
+    setState(() {
+      _attachedImage = null;
+    });
+
+    // Send message based on type
+    if (attachedImage != null) {
+      // Send image with optional text
+      _sendImageMessage(attachedImage, additionalText: text.isEmpty ? null : text);
+    } else {
+      // Send text only
+      _sendTextMessage(text);
+    }
+  }
+
+  void _sendTextMessage(String text) {
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
       _isLoading = true;
     });
 
-    _messageController.clear();
     _scrollToBottom();
 
     // Call AI service
@@ -457,7 +597,15 @@ class _AIChatScreenState extends State<AIChatScreen>
 
   void _handleAIResponse(String userMessage) async {
     try {
-      // Parse message using Gemini
+      // For simple greetings and casual chat, use direct chat endpoint
+      final lowerMessage = userMessage.toLowerCase().trim();
+      if (_isSimpleGreetingOrChat(lowerMessage)) {
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
+        return;
+      }
+      
+      // For potential transactions, try parsing first
       final parsedTransaction = await ChatService.parseTransaction(
         userMessage, 
         sessionId: _currentSession?.sessionId
@@ -483,7 +631,7 @@ class _AIChatScreenState extends State<AIChatScreen>
         // Handle Amartha-related queries
         _addBotMessage('Pertanyaan terkait Amartha sedang dalam pengembangan. Silakan hubungi customer service Amartha untuk bantuan lebih lanjut.');
       } else {
-        // Handle general queries
+        // Handle general queries with chat endpoint
         final response = await ChatService.sendChatMessage(userMessage);
         _addBotMessage(response);
       }
@@ -497,12 +645,58 @@ class _AIChatScreenState extends State<AIChatScreen>
       //   );
       // }
     } catch (e) {
-      _addBotMessage('Maaf, terjadi kesalahan. Silakan coba lagi.');
+      // If transaction parsing fails, fallback to regular chat
+      try {
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
+      } catch (chatError) {
+        _addBotMessage('Maaf, terjadi kesalahan. Silakan coba lagi.');
+      }
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  bool _isSimpleGreetingOrChat(String message) {
+    final greetings = [
+      'halo', 'hai', 'hi', 'hello', 'hey', 'hoi',
+      'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam',
+      'apa kabar', 'gimana', 'bagaimana',
+      'terima kasih', 'thanks', 'makasih',
+      'ok', 'oke', 'baik', 'siap'
+    ];
+    
+    // Check if message is just a greeting
+    for (String greeting in greetings) {
+      if (message == greeting || message.startsWith('$greeting ')) {
+        return true;
+      }
+    }
+    
+    // Check if message is very short and doesn't contain transaction keywords
+    if (message.length <= 10 && !_containsTransactionKeywords(message)) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  bool _containsTransactionKeywords(String message) {
+    final transactionKeywords = [
+      'jual', 'beli', 'kulakan', 'stok', 'harga', 'rp', 'rupiah',
+      'pcs', 'kg', 'gram', 'liter', 'dus', 'karung', 'ekor',
+      'transaksi', 'pembayaran', 'bayar'
+    ];
+    
+    for (String keyword in transactionKeywords) {
+      if (message.contains(keyword)) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   void _showTransactionValidationDialog(ParsedTransaction parsedTransaction, String userMessage) {
@@ -688,12 +882,24 @@ class _AIChatScreenState extends State<AIChatScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Pilih Sumber Gambar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5c2d91),
+                  ),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Color(0xFF5c2d91)),
                 title: const Text('Kamera'),
+                subtitle: const Text('Ambil foto langsung'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
+                  _pickImageForAttachment(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -702,9 +908,10 @@ class _AIChatScreenState extends State<AIChatScreen>
                   color: Color(0xFF5c2d91),
                 ),
                 title: const Text('Galeri'),
+                subtitle: const Text('Pilih dari galeri'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
+                  _pickImageForAttachment(ImageSource.gallery);
                 },
               ),
               ListTile(
@@ -721,7 +928,7 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImageForAttachment(ImageSource source) async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
@@ -732,7 +939,9 @@ class _AIChatScreenState extends State<AIChatScreen>
       );
 
       if (image != null) {
-        _sendImageMessage(image);
+        setState(() {
+          _attachedImage = image;
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -744,12 +953,18 @@ class _AIChatScreenState extends State<AIChatScreen>
     }
   }
 
-  void _sendImageMessage(XFile image) {
+
+
+  void _sendImageMessage(XFile image, {String? additionalText}) async {
     // Add user message with image
+    final displayText = additionalText?.isNotEmpty == true 
+        ? '$additionalText' 
+        : 'Gambar dikirim untuk analisis';
+    
     setState(() {
       _messages.add(
         ChatMessage(
-          text: '📷 Gambar dikirim',
+          text: displayText,
           isUser: true,
           imagePath: image.path,
         ),
@@ -759,22 +974,79 @@ class _AIChatScreenState extends State<AIChatScreen>
 
     _scrollToBottom();
 
-    // Simulate AI response to image
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      // Try to parse transaction using OCR + text
+      final parsedTransaction = await ChatService.parseTransactionWithImage(
+        imageFile: image, // Pass XFile directly
+        message: additionalText?.isNotEmpty == true ? additionalText : null,
+        sessionId: _currentSession?.sessionId,
+        onMimeInfo: (String info) {
+          // Show MIME info in placeholder text
+          if (mounted) {
+            setState(() {
+              _messageController.text = info;
+            });
+            // Clear after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && _messageController.text == info) {
+                setState(() {
+                  _messageController.clear();
+                });
+              }
+            });
+          }
+        },
+      );
+
+      // Show validation dialog
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _messages.add(
-            ChatMessage(
-              text:
-                  'Saya melihat gambar yang Anda kirim! Ini adalah fitur analisis gambar untuk bisnis Anda. Saya bisa membantu menganalisis:\n\n• Produk dalam foto\n• Kondisi stok\n• Kualitas produk\n• Saran untuk display produk\n\nApa yang ingin Anda tanyakan tentang gambar ini?',
-              isUser: false,
-            ),
-          );
         });
-        _scrollToBottom();
+
+        final shouldSave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => TransactionValidationDialog(
+            originalMessage: displayText,
+            parsedTransaction: parsedTransaction,
+          ),
+        );
+
+        if (shouldSave == true) {
+          _addBotMessage('✅ Transaksi berhasil disimpan!');
+        } else {
+          _addBotMessage('ℹ️ Transaksi dibatalkan.');
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        String errorMessage;
+        if (e.toString().contains('category":"other"') || 
+            e.toString().contains('category":"amartha"')) {
+          // Handle non-transaction messages
+          try {
+            final aiResponse = await ChatService.sendChatMessage(
+              additionalText?.isNotEmpty == true 
+                ? 'Gambar dengan pesan: $additionalText' 
+                : 'Analisis gambar ini'
+            );
+            _addBotMessage(aiResponse);
+            return;
+          } catch (chatError) {
+            errorMessage = 'Maaf, saya tidak bisa memproses gambar ini. Pastikan gambar berisi struk belanja atau informasi transaksi yang jelas.';
+          }
+        } else {
+          errorMessage = 'Error memproses gambar: ${e.toString()}';
+        }
+        
+        _addBotMessage('❌ $errorMessage');
+      }
+    }
   }
 
   @override
