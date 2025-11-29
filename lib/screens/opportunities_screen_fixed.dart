@@ -105,13 +105,13 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.trending_up,
                   color: Colors.white,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   'Powered by AI Analytics',
                   style: TextStyle(
                     color: Colors.white,
@@ -140,9 +140,9 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                 color: const Color(0xFF5c2d91).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.insights,
-                color: const Color(0xFF5c2d91),
+                color: Color(0xFF5c2d91),
                 size: 20,
               ),
             ),
@@ -320,17 +320,17 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
+                            Text(
                               'Pelajari Lebih Lanjut',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontFamily: 'Poppins',
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Icon(
                               Icons.arrow_forward,
                               size: 16,
@@ -357,7 +357,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                     topRight: Radius.circular(20),
                   ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.star,
                   color: Colors.white,
                   size: 14,
@@ -430,11 +430,11 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Eksklusif untuk partner UMKM',
                       style: TextStyle(
                         fontSize: 12,
-                        color: const Color(0xFF5c2d91),
+                        color: Color(0xFF5c2d91),
                         fontWeight: FontWeight.w600,
                         fontFamily: 'Poppins',
                       ),
@@ -498,114 +498,114 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
       'Network & mentoring',
     ];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white,
-            colors[index].withOpacity(0.02),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colors[index].withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-            spreadRadius: -5,
+    return GestureDetector(
+      onTap: () => _handleAmarthaOpportunityTap(index),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white,
+              colors[index].withOpacity(0.02),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-        border: Border.all(
-          color: colors[index].withOpacity(0.2),
-          width: 1.5,
+          boxShadow: [
+            BoxShadow(
+              color: colors[index].withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+              spreadRadius: -5,
+            ),
+          ],
+          border: Border.all(
+            color: colors[index].withOpacity(0.2),
+            width: 1.5,
+          ),
         ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          colors[index],
-                          colors[index].withOpacity(0.8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            colors[index],
+                            colors[index].withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors[index].withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors[index].withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                      child: Icon(
+                        icons[index],
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
-                    child: Icon(
-                      icons[index],
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          recommendation.split(':')[0],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            fontFamily: 'Poppins',
-                            color: Color(0xFF2D3748),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors[index].withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            benefits[index],
-                            style: TextStyle(
-                              color: colors[index],
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recommendation.split(':')[0],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
                               fontFamily: 'Poppins',
+                              color: Color(0xFF2D3748),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          recommendation.split(':')[1].trim(),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 13,
-                            fontFamily: 'Poppins',
-                            height: 1.4,
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors[index].withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              benefits[index],
+                              style: TextStyle(
+                                color: colors[index],
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            recommendation.split(':')[1].trim(),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                              fontFamily: 'Poppins',
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => _handleAmarthaOpportunityTap(index),
-                    child: Container(
+                    const SizedBox(width: 12),
+                    Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
@@ -626,10 +626,10 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                           ),
                         ],
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
+                          Text(
                             'COBA',
                             style: TextStyle(
                               color: Colors.white,
@@ -638,7 +638,7 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                               fontFamily: 'Poppins',
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Icon(
                             Icons.arrow_forward,
                             color: Colors.white,
@@ -647,53 +647,53 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.orange,
-                      Colors.orange.shade600,
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.local_fire_department,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'NEW',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.orange,
+                        Colors.orange.shade600,
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'NEW',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Poppins',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -748,14 +748,30 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(insight.title),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          insight.title,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(
           'Rekomendasi: ${insight.description}\n\nFitur ini akan segera hadir!',
+          style: const TextStyle(fontFamily: 'Poppins'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF5c2d91),
+            ),
+            child: const Text(
+              'OK',
+              style: TextStyle(fontFamily: 'Poppins'),
+            ),
           ),
         ],
       ),
@@ -779,14 +795,30 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(titles[index]),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          titles[index],
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(
           '${messages[index]}\n\nHubungi tim Amartha untuk informasi lebih lanjut.',
+          style: const TextStyle(fontFamily: 'Poppins'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Nanti'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey[600],
+            ),
+            child: const Text(
+              'Nanti',
+              style: TextStyle(fontFamily: 'Poppins'),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -796,8 +828,14 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF5c2d91),
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Hubungi Sekarang'),
+            child: const Text(
+              'Hubungi Sekarang',
+              style: TextStyle(fontFamily: 'Poppins'),
+            ),
           ),
         ],
       ),
@@ -808,26 +846,53 @@ class _OpportunitiesScreenState extends State<OpportunitiesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hubungi Amartha'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Hubungi Amartha',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: Icon(Icons.phone, color: Color(0xFF5c2d91)),
-              title: Text('Call Center'),
-              subtitle: Text('1500-878'),
+              title: Text(
+                'Call Center',
+                style: TextStyle(fontFamily: 'Poppins'),
+              ),
+              subtitle: Text(
+                '1500-878',
+                style: TextStyle(fontFamily: 'Poppins'),
+              ),
             ),
             ListTile(
               leading: Icon(Icons.message, color: Color(0xFF5c2d91)),
-              title: Text('WhatsApp'),
-              subtitle: Text('0812-3456-7890'),
+              title: Text(
+                'WhatsApp',
+                style: TextStyle(fontFamily: 'Poppins'),
+              ),
+              subtitle: Text(
+                '0812-3456-7890',
+                style: TextStyle(fontFamily: 'Poppins'),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF5c2d91),
+            ),
+            child: const Text(
+              'Tutup',
+              style: TextStyle(fontFamily: 'Poppins'),
+            ),
           ),
         ],
       ),
