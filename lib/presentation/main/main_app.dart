@@ -18,7 +18,7 @@ class _MainAppState extends State<MainApp> {
     return Scaffold(
       appBar: AppBar(
         title: Image.asset(
-          'assets/images/logo.jpeg',
+          'images/logo.jpeg',
           height: 40,
           fit: BoxFit.contain,
         ),
