@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../controller/auth_controller.dart';
 import '../models/transaction.dart';
 import '../models/product.dart';
 import '../models/business_insight.dart';
 import '../services/dummy_data_service.dart';
+import '../presentation/authentication/login.dart';
 import 'transaction_entry_screen.dart';
 import 'inventory_screen.dart';
 import 'reports_screen.dart';
@@ -48,7 +51,7 @@ class _MainDashboardState extends State<MainDashboard> {
         title: Row(
           children: [
             Image.asset(
-              'images/logo.png',
+              'assets/images/logo.png',
               height: 24,
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.book, color: Colors.white),
@@ -135,6 +138,7 @@ class _MainDashboardState extends State<MainDashboard> {
               child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
@@ -539,7 +543,9 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
-  void _handleLogout() {
+  void _handleLogout() async {
+    final authController = Provider.of<AuthController>(context, listen: false);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -547,13 +553,56 @@ class _MainDashboardState extends State<MainDashboard> {
         content: const Text('Yakin mau keluar dari KuBuku?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Handle actual logout logic here
+            onPressed: () async {
+              // Close confirmation dialog first
+              if (mounted) Navigator.pop(context);
+              
+              // Show loading
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => PopScope(
+                    canPop: false,
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                );
+              }
+              
+              try {
+                // Handle logout
+                await authController.logout();
+                
+                // Navigate to login (this will close all dialogs)
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (Route<dynamic> route) => false,
+                  );
+                }
+              } catch (e) {
+                // Close loading dialog
+                if (mounted) Navigator.pop(context);
+                
+                // Show error
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('Keluar'),
           ),

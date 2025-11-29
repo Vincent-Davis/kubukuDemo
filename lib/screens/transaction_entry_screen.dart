@@ -5,7 +5,7 @@ import '../controller/auth_controller.dart';
 import '../services/transaction_service.dart';
 import '../services/product_service.dart';
 import '../models/product.dart';
-import 'product_list_screen.dart';
+import 'transaction_list_screen.dart';
 
 class TransactionEntryScreen extends StatefulWidget {
   final List<Transaction> transactions;
@@ -689,11 +689,11 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
   }
 
   void _showAllTransactions() {
-    // Navigate to product list screen
+    // Navigate to transaction list screen
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const ProductListScreen(),
+        builder: (context) => const TransactionListScreen(),
       ),
     );
   }

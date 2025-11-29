@@ -11,9 +11,9 @@ class CustomCarousel extends StatefulWidget {
 class _CustomCarouselState extends State<CustomCarousel> {
   final PageController _pageController = PageController();
   final List<String> _images = [
-    'assets/images/slider/1.png',
-    'assets/images/slider/2.png',
-    'assets/images/slider/3.png',
+    'assets/images/logo.png',
+    'assets/images/mascot.png',
+    'assets/images/amartha-remove-bg.png',
   ];
   int _currentIndex = 0;
   Timer? _autoPlayTimer;

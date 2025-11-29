@@ -21,6 +21,7 @@ class TransactionValidationDialog extends StatefulWidget {
 class _TransactionValidationDialogState extends State<TransactionValidationDialog> {
   late List<ParsedTransactionItem> _editableItems;
   bool _isProcessing = false;
+  String? _correctedType; // Store corrected type
 
   @override
   void initState() {
@@ -29,11 +30,47 @@ class _TransactionValidationDialogState extends State<TransactionValidationDialo
     _editableItems = widget.parsedTransaction.items
         .map((item) => item.copyWith())
         .toList();
+    
+    // Fix transaction type based on edge cases
+    _correctedType = _detectCorrectTransactionType();
+  }
+
+  // Fix transaction type based on keywords in original message
+  String _detectCorrectTransactionType() {
+    final message = widget.originalMessage.toLowerCase();
+    
+    // Strong sell indicators (prioritize these)
+    final strongSellKeywords = ['jual', 'laku', 'terjual', 'penjualan', 'laris', 'dapat dari jual'];
+    
+    // Strong buy indicators  
+    final strongBuyKeywords = ['beli', 'kulakan', 'modal', 'buat stok', 'tambah stok'];
+    
+    // Edge case buy phrases (specific combinations)
+    final buyPhrases = ['habis beli', 'beli habis', 'abis beli', 'beli untuk stok'];
+    
+    // Check for strong sell indicators first
+    bool hasStrongSell = strongSellKeywords.any((keyword) => message.contains(keyword));
+    
+    // Check for strong buy indicators
+    bool hasStrongBuy = strongBuyKeywords.any((keyword) => message.contains(keyword));
+    
+    // Check for specific buy phrases (edge cases)
+    bool hasBuyPhrase = buyPhrases.any((phrase) => message.contains(phrase));
+    
+    // Decision logic with priority
+    if (hasStrongSell && !hasBuyPhrase) {
+      return 'sell';
+    } else if (hasStrongBuy || hasBuyPhrase) {
+      return 'buy';
+    }
+    
+    // Return original type if no clear indicators
+    return widget.parsedTransaction.type ?? 'sell';
   }
 
   @override
   Widget build(BuildContext context) {
-    final transactionType = widget.parsedTransaction.type;
+    final transactionType = _correctedType ?? widget.parsedTransaction.type;
     final isValidTransaction = widget.parsedTransaction.isStockTransaction;
 
     return AlertDialog(
@@ -52,6 +89,23 @@ class _TransactionValidationDialogState extends State<TransactionValidationDialo
               style: const TextStyle(fontSize: 18),
             ),
           ),
+          // Show indicator if transaction type was corrected
+          if (_correctedType != null && _correctedType != widget.parsedTransaction.type)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Auto-corrected',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.orange[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
       content: SizedBox(
@@ -311,10 +365,11 @@ class _TransactionValidationDialogState extends State<TransactionValidationDialo
       }
 
       // Create transaction
+      final correctedType = _correctedType ?? widget.parsedTransaction.type;
       final transaction = Transaction(
         id: DateTime.now().millisecondsSinceEpoch,
         userId: TransactionService.getCurrentUserId(),
-        type: widget.parsedTransaction.type == 'sell' 
+        type: correctedType == 'sell' 
             ? TransactionType.sell 
             : TransactionType.buy,
         timestamp: DateTime.now(),
@@ -331,7 +386,7 @@ class _TransactionValidationDialogState extends State<TransactionValidationDialo
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Transaksi ${widget.parsedTransaction.type == 'sell' ? 'penjualan' : 'pembelian'} berhasil disimpan',
+              'Transaksi ${correctedType == 'sell' ? 'penjualan' : 'pembelian'} berhasil disimpan',
             ),
             backgroundColor: Colors.green,
           ),

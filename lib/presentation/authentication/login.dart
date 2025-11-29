@@ -161,7 +161,7 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.all(8),
             child: ClipOval(
               child: Image.asset(
-                'images/mascot.png',
+                'assets/images/mascot.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -494,7 +494,7 @@ class _LoginPageState extends State<LoginPage> {
           height: 50,
           width: 180,
           child: Image.asset(
-            'images/logo.png',
+            'assets/images/logo.png',
             fit: BoxFit.contain,
           ),
         ),
