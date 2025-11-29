@@ -364,4 +364,273 @@ class ChatService {
       throw Exception('Error getting session messages: $e');
     }
   }
+
+  /// Send message to Amartha RAG system
+  static Future<String> sendAmarthaRagMessage(String query, {String? sessionId}) async {
+    try {
+      final url = sessionId != null 
+          ? '$baseUrl/rag/chat/$sessionId/' 
+          : '$baseUrl/rag/chat/';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: _authHeaders,
+        body: jsonEncode({
+          'query': query,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'success') {
+          final messages = data['new_messages'] as List<dynamic>;
+          // Find the bot response (last message that's from bot)
+          final botMessage = messages.lastWhere(
+            (msg) => msg['sender'] == 'bot',
+            orElse: () => null,
+          );
+          
+          if (botMessage != null) {
+            return botMessage['message'] as String;
+          } else {
+            return 'Maaf, tidak ada respons dari sistem Amartha.';
+          }
+        } else {
+          throw Exception('API returned error: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        throw Exception('Failed to send Amartha RAG message: ${response.statusCode}\nResponse: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error sending Amartha RAG message: $e');
+    }
+  }
+
+  /// Send message to Analytics/Financial chatbot
+  static Future<String> sendAnalyticsMessage(String message) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/analytics/chat/'),
+        headers: _authHeaders,
+        body: jsonEncode({
+          'message': message,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['reply'] != null) {
+          String reply = data['reply'] as String;
+          
+          // Apply smart parsing to extract clean text
+          return _parseAnalyticsResponse(reply);
+        } else {
+          throw Exception('No reply field in response');
+        }
+      } else {
+        throw Exception('Failed to send analytics message: ${response.statusCode}\nResponse: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Error sending analytics message: $e');
+    }
+  }
+
+  /// Smart parser for analytics responses
+  static String _parseAnalyticsResponse(String reply) {
+    // First, try to parse as JSON
+    try {
+      final replyJson = json.decode(reply);
+      
+      if (replyJson is Map<String, dynamic>) {
+        return _extractMeaningfulText(replyJson);
+      } else if (replyJson is String) {
+        return replyJson;
+      }
+    } catch (e) {
+      // If not JSON, return as-is after cleaning
+      return _cleanPlainText(reply);
+    }
+    
+    return reply;
+  }
+
+  /// Extract meaningful text from JSON response
+  static String _extractMeaningfulText(Map<String, dynamic> jsonData) {
+    // Pattern 1: Direct output field
+    if (jsonData.containsKey('output')) {
+      return _cleanPlainText(jsonData['output'].toString());
+    }
+    
+    // Pattern 2: Tool responses (e.g., analyze_credit_health_response)
+    for (String key in jsonData.keys) {
+      if (key.endsWith('_response') && jsonData[key] is Map<String, dynamic>) {
+        final toolResponse = jsonData[key] as Map<String, dynamic>;
+        if (toolResponse.containsKey('output')) {
+          return _formatAnalyticsOutput(toolResponse['output'].toString());
+        }
+      }
+    }
+    
+    // Pattern 3: Multiple tool outputs - combine them
+    List<String> outputs = [];
+    for (String key in jsonData.keys) {
+      if (key.endsWith('_response')) {
+        final value = jsonData[key];
+        if (value is Map<String, dynamic> && value.containsKey('output')) {
+          outputs.add(_formatAnalyticsOutput(value['output'].toString()));
+        }
+      }
+    }
+    
+    if (outputs.isNotEmpty) {
+      return outputs.join('\n\n');
+    }
+    
+    // Pattern 4: Fallback - format the entire JSON nicely
+    return _formatJsonAsText(jsonData);
+  }
+
+  /// Format analytics output for better readability
+  static String _formatAnalyticsOutput(String output) {
+    // Clean up common formatting issues
+    String cleaned = output;
+    
+    // Remove customer IDs and technical details
+    cleaned = cleaned.replaceAll(RegExp(r'Customer [a-f0-9]+:?\s*'), '');
+    cleaned = cleaned.replaceAll(RegExp(r'for Customer [a-f0-9]+\s*'), '');
+    
+    // Format currency better
+    cleaned = cleaned.replaceAll('IDR ', 'Rp ');
+    cleaned = cleaned.replaceAll(RegExp(r'IDR\s*0\.00'), 'Rp 0');
+    
+    // Add line breaks before each component (- indicates a new item)
+    cleaned = cleaned.replaceAll(' - ', '\n• ');
+    
+    // Format status and advice with proper line breaks
+    if (cleaned.contains('Status:') && cleaned.contains('Advice:')) {
+      final parts = cleaned.split('Advice:');
+      if (parts.length == 2) {
+        String statusPart = parts[0].trim();
+        String advicePart = parts[1].trim();
+        
+        // Format status section with line breaks
+        statusPart = statusPart.replaceAll('Status:', '📊 Status:');
+        statusPart = statusPart.replaceAll('Weekly Surplus:', '\n💰 Surplus Mingguan:');
+        statusPart = statusPart.replaceAll('Next Bill:', '\n📅 Tagihan Berikutnya:');
+        statusPart = statusPart.replaceAll('Total Outstanding:', '\n💳 Total Hutang:');
+        statusPart = statusPart.replaceAll('Max DPD:', '\n⏰ Keterlambatan Maksimal:');
+        
+        // Clean up bullet points in status
+        statusPart = statusPart.replaceAll('• Status:', '📊 Status:');
+        statusPart = statusPart.replaceAll('• Weekly Surplus:', '💰 Surplus Mingguan:');
+        statusPart = statusPart.replaceAll('• Next Bill:', '📅 Tagihan Berikutnya:');
+        statusPart = statusPart.replaceAll('• Total Outstanding:', '💳 Total Hutang:');
+        statusPart = statusPart.replaceAll('• Max DPD:', '⏰ Keterlambatan Maksimal:');
+        
+        // Format advice section
+        advicePart = '💡 Saran: ' + advicePart;
+        
+        return statusPart + '\n\n' + advicePart;
+      }
+    }
+    
+    // Format simple outputs with better spacing
+    if (cleaned.toLowerCase().contains('total income')) {
+      cleaned = cleaned.replaceAll('Total income for ', '💰 Total pendapatan ');
+      cleaned = cleaned.replaceAll('this_week:', 'minggu ini:');
+      cleaned = cleaned.replaceAll('this_month:', 'bulan ini:');
+      cleaned = cleaned.replaceAll('today:', 'hari ini:');
+    }
+    
+    if (cleaned.toLowerCase().contains('total expense')) {
+      cleaned = cleaned.replaceAll('Total expense for ', '💸 Total pengeluaran ');
+      cleaned = cleaned.replaceAll('this_week:', 'minggu ini:');
+      cleaned = cleaned.replaceAll('this_month:', 'bulan ini:');
+      cleaned = cleaned.replaceAll('today:', 'hari ini:');
+    }
+    
+    // Clean up extra spaces and normalize line breaks
+    cleaned = cleaned.replaceAll(RegExp(r'\s*\n\s*'), '\n');
+    cleaned = cleaned.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    
+    return _cleanPlainText(cleaned);
+  }
+
+  /// Format JSON as readable text when no specific pattern matches
+  static String _formatJsonAsText(Map<String, dynamic> jsonData) {
+    List<String> lines = [];
+    
+    for (String key in jsonData.keys) {
+      final value = jsonData[key];
+      String formattedKey = _formatKey(key);
+      String formattedValue = _formatValue(value);
+      
+      if (formattedValue.isNotEmpty && formattedValue != 'null') {
+        lines.add('$formattedKey: $formattedValue');
+      }
+    }
+    
+    return lines.join('\n');
+  }
+
+  /// Clean plain text from unwanted characters and formatting
+  static String _cleanPlainText(String text) {
+    return text
+        .trim()
+        .replaceAll(RegExp(r'[ \t]+'), ' ') // Multiple spaces/tabs to single space (but keep newlines)
+        .replaceAll(RegExp(r'\n\s*\n\s*\n+'), '\n\n') // Multiple newlines to double newline max
+        .replaceAll('"', '') // Remove quotes
+        .replaceAll('{', '') // Remove JSON artifacts
+        .replaceAll('}', '')
+        .trim();
+  }
+
+  // Helper method to format JSON keys for display
+  static String _formatKey(String key) {
+    return key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '')
+        .join(' ');
+  }
+
+  // Helper method to format JSON values for display
+  static String _formatValue(dynamic value) {
+    if (value is String) {
+      return _cleanPlainText(value);
+    } else if (value is Map<String, dynamic>) {
+      if (value.containsKey('output')) {
+        return _formatAnalyticsOutput(value['output'].toString());
+      }
+      // Format nested objects
+      String result = '';
+      for (String key in value.keys) {
+        if (result.isNotEmpty) result += ', ';
+        result += '${_formatKey(key)}: ${value[key]}';
+      }
+      return result;
+    } else if (value is List) {
+      return value.map((item) => _formatValue(item)).join(', ');
+    } else {
+      return value.toString();
+    }
+  }
+
+  /// Get cashflow trend data for charts
+  static Future<Map<String, dynamic>> getCashflowTrend() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/analytics/cashflow-trend/'),
+        headers: _authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Failed to get cashflow trend: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error getting cashflow trend: $e');
+    }
+  }
 }
