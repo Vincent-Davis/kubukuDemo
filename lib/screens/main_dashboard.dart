@@ -48,7 +48,7 @@ class _MainDashboardState extends State<MainDashboard> {
         title: Row(
           children: [
             Image.asset(
-              'images/logo.jpeg',
+              'images/logo.png',
               height: 24,
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.book, color: Colors.white),
@@ -150,21 +150,9 @@ class _MainDashboardState extends State<MainDashboard> {
           },
         );
       case 1:
-        return InventoryScreen(
-          products: products,
-          onProductUpdated: (updatedProduct) {
-            setState(() {
-              final index = products.indexWhere(
-                (p) => p.id == updatedProduct.id,
-              );
-              if (index != -1) {
-                products[index] = updatedProduct;
-              }
-            });
-          },
-        );
+        return const InventoryScreen();
       case 2:
-        return ReportsScreen(transactions: transactions);
+        return const ReportsScreen();
       case 3:
         return OpportunitiesScreen(insights: insights);
       default:

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../controller/auth_controller.dart';
+import '../services/transaction_service.dart';
+import '../services/product_service.dart';
+import '../models/product.dart';
+import 'product_list_screen.dart';
 
 class TransactionEntryScreen extends StatefulWidget {
   final List<Transaction> transactions;
@@ -18,19 +22,165 @@ class TransactionEntryScreen extends StatefulWidget {
 }
 
 class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
+  List<Transaction> _recentTransactions = [];
+  List<Transaction> _realTransactions = [];
+  List<Product> _products = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+  
+  // Statistics
+  double _todayRevenue = 0;
+  double _weeklyRevenue = 0;
+  int _todayTransactionCount = 0;
+  int _productsSoldToday = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRealData();
+  }
+
+  Future<void> _loadRealData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      final authController = Provider.of<AuthController>(context, listen: false);
+      TransactionService.setAuthController(authController);
+      ProductService.setAuthController(authController);
+
+      // Load transactions and products in parallel
+      final futures = await Future.wait([
+        TransactionService.getTransactions(),
+        ProductService.getProducts(),
+      ]);
+
+      final transactions = futures[0] as List<Transaction>;
+      final products = futures[1] as List<Product>;
+
+      setState(() {
+        _realTransactions = transactions;
+        _products = products;
+        _calculateStatistics();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _calculateStatistics() {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekStart = now.subtract(Duration(days: 7));
+
+    // Calculate today's statistics
+    final todayTransactions = _realTransactions.where((t) => 
+      t.timestamp.isAfter(todayStart) && t.type == TransactionType.sell
+    ).toList();
+
+    _todayRevenue = todayTransactions.fold(0, (sum, t) => sum + t.totalAmount);
+    _todayTransactionCount = todayTransactions.length;
+    _productsSoldToday = todayTransactions.fold(0, (sum, t) => 
+      sum + t.items.fold(0, (itemSum, item) => itemSum + item.quantity.toInt())
+    );
+
+    // Calculate weekly revenue
+    final weeklyTransactions = _realTransactions.where((t) => 
+      t.timestamp.isAfter(weekStart) && t.type == TransactionType.sell
+    ).toList();
+    
+    _weeklyRevenue = weeklyTransactions.fold(0, (sum, t) => sum + t.totalAmount);
+  }
+
+  Future<void> _refreshData() async {
+    await _loadRealData();
+  }
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 20),
-          _buildQuickStats(),
-          const SizedBox(height: 20),
-          _buildRecentTransactions(),
-        ],
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF5c2d91)),
+            SizedBox(height: 16),
+            Text('Memuat data transaksi...', style: TextStyle(fontFamily: 'Poppins')),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refreshData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Container(
+            height: MediaQuery.of(context).size.height - 200,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Gagal memuat data',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      _errorMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _refreshData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5c2d91),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeCard(),
+            const SizedBox(height: 20),
+            _buildQuickStats(),
+            const SizedBox(height: 20),
+            _buildRecentTransactions(),
+          ],
+        ),
       ),
     );
   }
@@ -147,9 +297,9 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Rp 87.000',
-                        style: TextStyle(
+                      Text(
+                        _formatCurrency(_todayRevenue),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -191,9 +341,9 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Rp 520.000',
-                        style: TextStyle(
+                      Text(
+                        _formatCurrency(_weeklyRevenue),
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -217,7 +367,7 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
         Expanded(
           child: _buildStatCard(
             'Transaksi Hari Ini',
-            '12',
+            _todayTransactionCount.toString(),
             Icons.receipt_long,
             Colors.blue,
           ),
@@ -226,7 +376,7 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
         Expanded(
           child: _buildStatCard(
             'Produk Terjual',
-            '28',
+            _productsSoldToday.toString(),
             Icons.shopping_cart,
             Colors.green,
           ),
@@ -369,15 +519,46 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: widget.transactions.take(5).length,
-          itemBuilder: (context, index) {
-            final transaction = widget.transactions[index];
-            return _buildTransactionItem(transaction);
-          },
-        ),
+        _realTransactions.isEmpty
+            ? Container(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.receipt_long_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Belum ada transaksi',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Transaksi Anda akan muncul di sini',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _realTransactions.take(5).length,
+                itemBuilder: (context, index) {
+                  final transaction = _realTransactions[index];
+                  return _buildTransactionItem(transaction);
+                },
+              ),
       ],
     );
   }
@@ -508,18 +689,11 @@ class _TransactionEntryScreenState extends State<TransactionEntryScreen> {
   }
 
   void _showAllTransactions() {
-    // Navigate to full transaction list
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Semua Transaksi'),
-        content: const Text('Fitur ini akan segera hadir!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+    // Navigate to product list screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProductListScreen(),
       ),
     );
   }

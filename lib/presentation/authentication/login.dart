@@ -120,6 +120,8 @@ class _LoginPageState extends State<LoginPage> {
                       _buildLoginCard(),
                       const SizedBox(height: 30),
                       _buildSignUpLink(),
+                      const SizedBox(height: 30),
+                      _buildPoweredBySection(),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -136,15 +138,15 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       children: [
         // Amartha Logo
-        Container(
-          height: 80,
-          width: 260,
-          child: Image.asset(
-            'images/amartha-remove-bg.png',
-            fit: BoxFit.contain,
-          ),
-        ),
-        const SizedBox(height: 30),
+        // Container(
+        //   height: 80,
+        //   width: 260,
+        //   child: Image.asset(
+        //     'images/amartha-remove-bg.png',
+        //     fit: BoxFit.contain,
+        //   ),
+        // ),
+        // const SizedBox(height: 30),
         
         // Mascot
         Container(
@@ -473,6 +475,30 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPoweredBySection() {
+    return Column(
+      children: [
+        Text(
+          'Powered by',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white.withOpacity(0.7),
+            fontFamily: 'Poppins',
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          height: 50,
+          width: 180,
+          child: Image.asset(
+            'images/logo.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+      ],
     );
   }
 }
