@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../controller/auth_controller.dart';
 import '../models/transaction.dart';
 import '../models/product.dart';
 import '../models/business_insight.dart';
 import '../services/dummy_data_service.dart';
+import '../presentation/authentication/login.dart';
 import 'transaction_entry_screen.dart';
 import 'inventory_screen.dart';
 import 'reports_screen.dart';
 import 'opportunities_screen.dart';
+import 'product_list_screen.dart';
+import 'transaction_list_screen.dart';
+import 'product_form_screen.dart';
+import 'transaction_form_screen.dart';
+import 'ai_chat_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -38,6 +46,7 @@ class _MainDashboardState extends State<MainDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildDrawer(),
       appBar: AppBar(
         title: Row(
           children: [
@@ -53,7 +62,25 @@ class _MainDashboardState extends State<MainDashboard> {
         ),
         backgroundColor: const Color(0xFF5c2d91),
         foregroundColor: Colors.white,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.smart_toy),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AIChatScreen(),
+                ),
+              );
+            },
+            tooltip: 'Asisten AI',
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () => _showNotifications(),
@@ -111,6 +138,7 @@ class _MainDashboardState extends State<MainDashboard> {
               child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
@@ -126,21 +154,9 @@ class _MainDashboardState extends State<MainDashboard> {
           },
         );
       case 1:
-        return InventoryScreen(
-          products: products,
-          onProductUpdated: (updatedProduct) {
-            setState(() {
-              final index = products.indexWhere(
-                (p) => p.id == updatedProduct.id,
-              );
-              if (index != -1) {
-                products[index] = updatedProduct;
-              }
-            });
-          },
-        );
+        return const InventoryScreen();
       case 2:
-        return ReportsScreen(transactions: transactions);
+        return const ReportsScreen();
       case 3:
         return OpportunitiesScreen(insights: insights);
       default:
@@ -177,6 +193,12 @@ class _MainDashboardState extends State<MainDashboard> {
             ),
             const SizedBox(height: 20),
             _buildQuickAddOption(
+              Icons.smart_toy,
+              'Chat AI',
+              'Ngobrol dengan AI: "jual 5 telur 10rb"',
+              () => _handleAIChat(),
+            ),
+            _buildQuickAddOption(
               Icons.mic,
               'Rekam Suara',
               'Bilang aja: "Jual beras 5kg dapat 25 ribu"',
@@ -193,6 +215,12 @@ class _MainDashboardState extends State<MainDashboard> {
               'Ketik Manual',
               'Tulis transaksi langsung di sini',
               () => _handleManualEntry(),
+            ),
+            _buildQuickAddOption(
+              Icons.add_business,
+              'Tambah Produk',
+              'Daftarkan produk baru ke inventori',
+              () => _handleAddProduct(),
             ),
           ],
         ),
@@ -251,9 +279,24 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
+  void _handleAIChat() {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AIChatScreen(),
+      ),
+    );
+  }
+
   void _handleVoiceEntry() {
     Navigator.pop(context);
-    _showComingSoonDialog('Fitur Rekam Suara');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AIChatScreen(),
+      ),
+    );
   }
 
   void _handlePhotoEntry() {
@@ -263,7 +306,22 @@ class _MainDashboardState extends State<MainDashboard> {
 
   void _handleManualEntry() {
     Navigator.pop(context);
-    _showComingSoonDialog('Form Input Manual');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TransactionFormScreen(),
+      ),
+    );
+  }
+
+  void _handleAddProduct() {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProductFormScreen(),
+      ),
+    );
   }
 
   void _showNotifications() {
@@ -357,7 +415,137 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
-  void _handleLogout() {
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: Color(0xFF5c2d91),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'KuBuku',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Kelola Bisnis Anda',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard),
+            title: const Text('Dashboard'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 0;
+              });
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.inventory_2),
+            title: const Text('Kelola Produk'),
+            subtitle: const Text('Tambah, edit, hapus produk'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProductListScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long),
+            title: const Text('Kelola Transaksi'),
+            subtitle: const Text('Lihat semua transaksi'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TransactionListScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.smart_toy),
+            title: const Text('Asisten AI'),
+            subtitle: const Text('Chat dengan AI untuk catat transaksi'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AIChatScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Laporan'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 2;
+              });
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.flash_on),
+            title: const Text('Peluang'),
+            onTap: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentTabIndex = 3;
+              });
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Pengaturan'),
+            onTap: () {
+              Navigator.pop(context);
+              _showComingSoonDialog('Pengaturan');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Keluar', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(context);
+              _handleLogout();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleLogout() async {
+    final authController = Provider.of<AuthController>(context, listen: false);
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -365,13 +553,56 @@ class _MainDashboardState extends State<MainDashboard> {
         content: const Text('Yakin mau keluar dari KuBuku?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (mounted) Navigator.pop(context);
+            },
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Handle actual logout logic here
+            onPressed: () async {
+              // Close confirmation dialog first
+              if (mounted) Navigator.pop(context);
+              
+              // Show loading
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => PopScope(
+                    canPop: false,
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                );
+              }
+              
+              try {
+                // Handle logout
+                await authController.logout();
+                
+                // Navigate to login (this will close all dialogs)
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (Route<dynamic> route) => false,
+                  );
+                }
+              } catch (e) {
+                // Close loading dialog
+                if (mounted) Navigator.pop(context);
+                
+                // Show error
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('Keluar'),
           ),

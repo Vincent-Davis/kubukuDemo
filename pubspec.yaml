@@ -36,7 +36,7 @@ dependencies:
   get: ^4.6.5
   provider: ^6.1.1
   get_it: ^8.0.2
-  pbp_django_auth: ^0.4.0
+  shared_preferences: ^2.2.3
   url_launcher: ^6.0.6
   cupertino_icons: ^1.0.8
   cached_network_image: ^3.4.1
@@ -50,10 +50,15 @@ dependencies:
 
   # Media & Image
   image_picker: ^1.2.0
+  http_parser: ^4.0.2
+  mime: ^1.0.5
   intl: ^0.20.2
   flutter_tts: ^4.2.0
   speech_to_text: ^7.0.0
   permission_handler: ^11.0.1
+  # record: ^5.1.2  # Temporarily removed due to compatibility issues
+  path_provider: ^2.1.4
+  flutter_sound: ^9.10.1  # Alternative for voice recording
 
   # Grouping & Lists
   grouped_list: ^5.1.2
@@ -73,8 +78,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets configuration - explicitly specify directories
   assets:
-    - assets/
+    - assets/images/
+    - assets/fonts/
 
   fonts:
     - family: Poppins
@@ -85,6 +93,21 @@ flutter:
           weight: 400
         - asset: assets/fonts/PoppinsMedium.ttf
           weight: 500
+
+flutter_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    background_color: "#5c2d91"
+    theme_color: "#5c2d91"
+  windows:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    icon_size: 48
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-import '../services/ai_chat_service.dart';
-import '../services/chat_utils.dart';
+import 'dart:typed_data';
+import '../services/chat_service.dart';
+import '../models/chat_session.dart';
+import '../models/parsed_transaction.dart';
+import '../widgets/transaction_validation_dialog.dart';
+
+enum ChatMode {
+  transaction,
+  amarthaRag,
+  analytics,
+}
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -12,42 +24,64 @@ class AIChatScreen extends StatefulWidget {
   State<AIChatScreen> createState() => _AIChatScreenState();
 }
 
-class _AIChatScreenState extends State<AIChatScreen>
-    with TickerProviderStateMixin {
+class _AIChatScreenState extends State<AIChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
 
-  // Voice recognition
-  late stt.SpeechToText _speech;
-  bool _isListening = false;
+  // Chat mode
+  ChatMode _currentMode = ChatMode.transaction;
+
+  // Chat session
+  ChatSession? _currentSession;
+
+  // Voice recording for transcription
+  late FlutterSoundRecorder _audioRecorder;
+  bool _isRecording = false;
+  String? _currentRecordingPath;
   bool _isLoading = false;
 
-  // Animation controllers
-  late AnimationController _voiceAnimationController;
-  late Animation<double> _voiceAnimation;
+  // Image attachment (max 1)
+  XFile? _attachedImage;
 
   @override
   void initState() {
     super.initState();
-    _speech = stt.SpeechToText();
-    _initVoiceAnimation();
-    _addBotMessage(
-      'Halo! Saya asisten AI KuBuku. Tanya apa saja tentang bisnis Anda, seperti:\n\n• "Apa yang paling laris minggu ini?"\n• "Berapa keuntungan hari ini?"\n• "Produk apa yang stoknya habis?"',
-    );
+    _audioRecorder = FlutterSoundRecorder();
+    _initializeRecorder();
+    _initializeChat();
   }
 
-  void _initVoiceAnimation() {
-    _voiceAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _voiceAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _voiceAnimationController,
-        curve: Curves.easeInOut,
-      ),
-    );
+  Future<void> _initializeRecorder() async {
+    await _audioRecorder.openRecorder();
+  }
+
+  void _initializeChat() async {
+    try {
+      // Skip session creation for now since endpoint doesn't exist
+      // _currentSession = await ChatService.createChatSession();
+      
+      // Add welcome message based on current mode
+      _addWelcomeMessage();
+    } catch (e) {
+      _addBotMessage('Maaf, terjadi kesalahan saat menginisialisasi chat. Silakan coba lagi.');
+    }
+  }
+
+  void _addWelcomeMessage() {
+    String welcomeMessage;
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        welcomeMessage = 'Halo! Mode Transaksi aktif. Anda bisa:\n\n• Catat transaksi: "jual 5 telur seharga 10rb"\n• Tanya stok: "cek stok beras"\n• Gunakan suara atau foto untuk input';
+        break;
+      case ChatMode.amarthaRag:
+        welcomeMessage = 'Halo! Mode Amartha Customer Service aktif. Anda bisa tanya tentang:\n\n• Produk pinjaman Amartha\n• Cara mengajukan pinjaman\n• Syarat dan ketentuan\n• Proses persetujuan';
+        break;
+      case ChatMode.analytics:
+        welcomeMessage = 'Halo! Mode Analisis Bisnis aktif. Anda bisa tanya:\n\n• "Berapa total penjualan minggu ini?"\n• "Analisis kesehatan kredit saya"\n• "Produk apa yang paling laris?"\n• "Bagaimana tren cashflow saya?"';
+        break;
+    }
+    _addBotMessage(welcomeMessage);
   }
 
   @override
@@ -68,9 +102,126 @@ class _AIChatScreenState extends State<AIChatScreen>
         backgroundColor: const Color(0xFF5c2d91),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          PopupMenuButton<ChatMode>(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            onSelected: (ChatMode mode) {
+              setState(() {
+                _currentMode = mode;
+                _messages.clear(); // Clear existing messages
+                _addWelcomeMessage(); // Add welcome message for new mode
+              });
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<ChatMode>(
+                value: ChatMode.transaction,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.receipt_long,
+                      color: _currentMode == ChatMode.transaction 
+                          ? const Color(0xFF5c2d91) 
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Transaksi',
+                      style: TextStyle(
+                        fontWeight: _currentMode == ChatMode.transaction
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem<ChatMode>(
+                value: ChatMode.amarthaRag,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.help_center,
+                      color: _currentMode == ChatMode.amarthaRag
+                          ? const Color(0xFF5c2d91)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Amartha CS',
+                      style: TextStyle(
+                        fontWeight: _currentMode == ChatMode.amarthaRag
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem<ChatMode>(
+                value: ChatMode.analytics,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.analytics,
+                      color: _currentMode == ChatMode.analytics
+                          ? const Color(0xFF5c2d91)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Analisis',
+                      style: TextStyle(
+                        fontWeight: _currentMode == ChatMode.analytics
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
+          // Mode indicator
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: _getModeColor().withOpacity(0.1),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey.shade200),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _getModeIcon(),
+                  color: _getModeColor(),
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Mode: ${_getModeDisplayName()}',
+                  style: TextStyle(
+                    color: _getModeColor(),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Tap ⚙️ untuk ganti mode',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: Column(
               children: [
@@ -92,11 +243,58 @@ class _AIChatScreenState extends State<AIChatScreen>
               ],
             ),
           ),
-          if (_isListening) _buildListeningIndicator(),
           _buildMessageInput(),
         ],
       ),
     );
+  }
+
+  Color _getModeColor() {
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        return const Color(0xFF5c2d91);
+      case ChatMode.amarthaRag:
+        return Colors.blue;
+      case ChatMode.analytics:
+        return Colors.green;
+    }
+  }
+
+  IconData _getModeIcon() {
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        return Icons.receipt_long;
+      case ChatMode.amarthaRag:
+        return Icons.help_center;
+      case ChatMode.analytics:
+        return Icons.analytics;
+    }
+  }
+
+  String _getModeDisplayName() {
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        return 'Transaksi';
+      case ChatMode.amarthaRag:
+        return 'Amartha Customer Service';
+      case ChatMode.analytics:
+        return 'Analisis Bisnis';
+    }
+  }
+
+  String _getInputHintText() {
+    if (_attachedImage != null) {
+      return 'Tambah keterangan untuk gambar (opsional)...';
+    }
+    
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        return 'Catat transaksi atau tanya stok...';
+      case ChatMode.amarthaRag:
+        return 'Tanya tentang Amartha...';
+      case ChatMode.analytics:
+        return 'Tanya analisis bisnis Anda...';
+    }
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
@@ -159,27 +357,50 @@ class _AIChatScreenState extends State<AIChatScreen>
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          File(message.imagePath!),
-                          width: 200,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 200,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(12),
+                        child: kIsWeb
+                            ? FutureBuilder<Uint8List>(
+                                future: () async {
+                                  // For web, imagePath contains the bytes as base64 or direct bytes
+                                  // We'll store the bytes directly in the message
+                                  return Uint8List(0); // Placeholder - we'll fix this separately
+                                }(),
+                                builder: (context, snapshot) {
+                                  return Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.image,
+                                      color: Colors.grey,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
+                              )
+                            : FutureBuilder<Uint8List>(
+                                future: () async {
+                                  // For mobile, we'll also use bytes for consistency
+                                  return Uint8List(0); // Placeholder
+                                }(),
+                                builder: (context, snapshot) {
+                                  return Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[300],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.image,
+                                      color: Colors.grey,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
                               ),
-                              child: const Icon(
-                                Icons.broken_image,
-                                color: Colors.grey,
-                                size: 40,
-                              ),
-                            );
-                          },
-                        ),
                       ),
                     ),
                   Text(
@@ -282,44 +503,6 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  Widget _buildListeningIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF5c2d91).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF5c2d91).withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _voiceAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _voiceAnimation.value,
-                child: Icon(
-                  Icons.mic,
-                  color: const Color(0xFF5c2d91),
-                  size: 24,
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Mendengarkan...',
-            style: TextStyle(
-              color: Color(0xFF5c2d91),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -334,87 +517,199 @@ class _AIChatScreenState extends State<AIChatScreen>
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            // Image attachment preview
+            if (_attachedImage != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: Colors.grey[200]!),
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: TextField(
-                  controller: _messageController,
-                  maxLines: null,
-                  decoration: const InputDecoration(
-                    hintText: 'Tanya tentang bisnis Anda...',
-                    hintStyle: TextStyle(color: Colors.grey),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: kIsWeb
+                          ? FutureBuilder<Uint8List>(
+                              future: _attachedImage!.readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  );
+                                } else {
+                                  return Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey[300],
+                                    child: const CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                }
+                              },
+                            )
+                          : FutureBuilder<Uint8List>(
+                              future: _attachedImage!.readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                  );
+                                } else {
+                                  return Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey[300],
+                                    child: const CircularProgressIndicator(strokeWidth: 2),
+                                  );
+                                }
+                              },
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Gambar siap dikirim',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF5c2d91),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _attachedImage = null;
+                        });
+                      },
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            // Input row
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(25),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: TextField(
+                      controller: _messageController,
+                      maxLines: null,
+                      decoration: InputDecoration(
+                        hintText: _getInputHintText(),
+                        hintStyle: const TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onSubmitted: (text) => _sendMessage(),
+                      onChanged: (text) {
+                        setState(() {});
+                      },
+                    ),
                   ),
-                  onSubmitted: (text) => _sendMessage(),
-                  onChanged: (text) {
-                    setState(() {});
-                  },
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Camera button
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF5c2d91).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: _showImageSourceDialog,
-                icon: const Icon(Icons.camera_alt, color: Color(0xFF5c2d91)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Voice button
-            Container(
-              decoration: BoxDecoration(
-                color: _isListening
-                    ? Colors.red
-                    : const Color(0xFF5c2d91).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: _toggleListening,
-                icon: Icon(
-                  _isListening ? Icons.mic : Icons.mic_none,
-                  color: _isListening ? Colors.white : const Color(0xFF5c2d91),
+                const SizedBox(width: 8),
+                // Camera button (only in transaction mode)
+                if (_currentMode == ChatMode.transaction)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5c2d91).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: _attachedImage == null ? _showImageSourceDialog : null,
+                      icon: Icon(
+                        Icons.camera_alt, 
+                        color: _attachedImage == null 
+                            ? const Color(0xFF5c2d91) 
+                            : Colors.grey,
+                      ),
+                    ),
+                  ),
+                if (_currentMode == ChatMode.transaction)
+                  const SizedBox(width: 8),
+                // Voice recording button (only in transaction mode)
+                if (_currentMode == ChatMode.transaction)
+                  InkWell(
+                    onTap: () {
+                      // Toggle recording on/off
+                      if (!_isLoading) {
+                        if (_isRecording) {
+                          _stopVoiceRecording();
+                        } else {
+                          _startVoiceRecording();
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isRecording
+                            ? Colors.red
+                            : const Color(0xFF5c2d91).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: _isRecording 
+                            ? Border.all(color: Colors.red.shade300, width: 2)
+                            : null,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.mic,
+                        color: _isRecording ? Colors.white : const Color(0xFF5c2d91),
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                if (_currentMode == ChatMode.transaction)
+                  const SizedBox(width: 8),
+                // Send button
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: (_messageController.text.trim().isNotEmpty || _attachedImage != null)
+                        ? const LinearGradient(
+                            colors: [Color(0xFF5c2d91), Color(0xFF7b4397)],
+                          )
+                        : null,
+                    color: (_messageController.text.trim().isEmpty && _attachedImage == null)
+                        ? Colors.grey[300]
+                        : null,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed:
+                        (_messageController.text.trim().isNotEmpty || _attachedImage != null) && !_isLoading
+                        ? _sendMessage
+                        : null,
+                    icon: Icon(
+                      Icons.send,
+                      color: (_messageController.text.trim().isNotEmpty || _attachedImage != null)
+                          ? Colors.white
+                          : Colors.grey[600],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Send button
-            Container(
-              decoration: BoxDecoration(
-                gradient: _messageController.text.trim().isNotEmpty
-                    ? const LinearGradient(
-                        colors: [Color(0xFF5c2d91), Color(0xFF7b4397)],
-                      )
-                    : null,
-                color: _messageController.text.trim().isEmpty
-                    ? Colors.grey[300]
-                    : null,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed:
-                    _messageController.text.trim().isNotEmpty && !_isLoading
-                    ? _sendMessage
-                    : null,
-                icon: Icon(
-                  Icons.send,
-                  color: _messageController.text.trim().isNotEmpty
-                      ? Colors.white
-                      : Colors.grey[600],
-                ),
-              ),
+              ],
             ),
           ],
         ),
@@ -422,16 +717,36 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isLoading) return;
+    final attachedImage = _attachedImage;
+    
+    // Must have either text or image
+    if (text.isEmpty && attachedImage == null) return;
+    if (_isLoading) return;
 
+    // Clear input and attachment
+    _messageController.clear();
+    setState(() {
+      _attachedImage = null;
+    });
+
+    // Send message based on type
+    if (attachedImage != null) {
+      // Send image with optional text
+      _sendImageMessage(attachedImage, additionalText: text.isEmpty ? null : text);
+    } else {
+      // Send text only
+      _sendTextMessage(text);
+    }
+  }
+
+  void _sendTextMessage(String text) {
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
       _isLoading = true;
     });
 
-    _messageController.clear();
     _scrollToBottom();
 
     // Call AI service
@@ -440,8 +755,18 @@ class _AIChatScreenState extends State<AIChatScreen>
 
   void _handleAIResponse(String userMessage) async {
     try {
-      final response = await AIChatService.sendMessage(userMessage);
-      _addBotMessage(response);
+      // Route based on current chat mode
+      switch (_currentMode) {
+        case ChatMode.transaction:
+          await _handleTransactionMode(userMessage);
+          break;
+        case ChatMode.amarthaRag:
+          await _handleAmarthaRagMode(userMessage);
+          break;
+        case ChatMode.analytics:
+          await _handleAnalyticsMode(userMessage);
+          break;
+      }
     } catch (e) {
       _addBotMessage('Maaf, terjadi kesalahan. Silakan coba lagi.');
     } finally {
@@ -451,66 +776,137 @@ class _AIChatScreenState extends State<AIChatScreen>
     }
   }
 
-  void _toggleListening() async {
-    if (_isListening) {
-      await _stopListening();
-    } else {
-      await _startListening();
-    }
-  }
-
-  Future<void> _startListening() async {
+  Future<void> _handleTransactionMode(String userMessage) async {
     try {
-      bool available = await _speech.initialize(
-        onStatus: (status) {
-          if (status == 'done' || status == 'notListening') {
-            _stopListening();
-          }
-        },
-        onError: (error) {
-          _stopListening();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${error.errorMsg}')));
-        },
+      // For simple greetings and casual chat, use direct chat endpoint
+      final lowerMessage = userMessage.toLowerCase().trim();
+      if (_isSimpleGreetingOrChat(lowerMessage)) {
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
+        return;
+      }
+      
+      // For potential transactions, try parsing first
+      final parsedTransaction = await ChatService.parseTransaction(
+        userMessage, 
+        sessionId: _currentSession?.sessionId
       );
-
-      if (available) {
-        setState(() {
-          _isListening = true;
-        });
-        _voiceAnimationController.repeat(reverse: true);
-
-        await _speech.listen(
-          onResult: (result) {
-            if (result.finalResult) {
-              setState(() {
-                _messageController.text = result.recognizedWords;
-              });
-              _stopListening();
-            }
-          },
-          localeId: 'id_ID', // Indonesian
-        );
+      
+      // Handle different types of responses
+      if (parsedTransaction.isStockTransaction) {
+        // Show transaction validation dialog
+        _showTransactionValidationDialog(parsedTransaction, userMessage);
+      } else if (parsedTransaction.isStockQuery) {
+        // Handle stock queries
+        _handleStockQuery(parsedTransaction);
+      } else if (parsedTransaction.isAmarthaRelated) {
+        // Redirect to Amartha mode suggestion
+        _addBotMessage('Sepertinya ini pertanyaan tentang Amartha. Coba ganti ke mode "Amartha CS" di menu ⚙️ untuk mendapat jawaban yang lebih akurat!');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Speech recognition tidak tersedia')),
-        );
+        // Handle general queries with chat endpoint
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
       }
     } catch (e) {
-      _stopListening();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error memulai speech recognition: $e')),
-      );
+      // If transaction parsing fails, fallback to regular chat
+      try {
+        final response = await ChatService.sendChatMessage(userMessage);
+        _addBotMessage(response);
+      } catch (chatError) {
+        throw Exception('Failed to get response');
+      }
     }
   }
 
-  Future<void> _stopListening() async {
-    await _speech.stop();
-    setState(() {
-      _isListening = false;
+  Future<void> _handleAmarthaRagMode(String userMessage) async {
+    try {
+      final response = await ChatService.sendAmarthaRagMessage(
+        userMessage,
+        sessionId: _currentSession?.sessionId,
+      );
+      _addBotMessage(response);
+    } catch (e) {
+      print('Amartha RAG Error: $e');
+      _addBotMessage('Maaf, sistem Amartha Customer Service sedang mengalami gangguan. Silakan coba lagi atau hubungi customer service langsung.\n\nError: $e');
+    }
+  }
+
+  Future<void> _handleAnalyticsMode(String userMessage) async {
+    try {
+      final response = await ChatService.sendAnalyticsMessage(userMessage);
+      _addBotMessage(response);
+    } catch (e) {
+      print('Analytics Error: $e');
+      _addBotMessage('Maaf, sistem analisis bisnis sedang mengalami gangguan. Silakan coba lagi nanti.\n\nError: $e');
+    }
+  }
+
+  bool _isSimpleGreetingOrChat(String message) {
+    final greetings = [
+      'halo', 'hai', 'hi', 'hello', 'hey', 'hoi',
+      'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam',
+      'apa kabar', 'gimana', 'bagaimana',
+      'terima kasih', 'thanks', 'makasih',
+      'ok', 'oke', 'baik', 'siap'
+    ];
+    
+    // Check if message is just a greeting
+    for (String greeting in greetings) {
+      if (message == greeting || message.startsWith('$greeting ')) {
+        return true;
+      }
+    }
+    
+    // Check if message is very short and doesn't contain transaction keywords
+    if (message.length <= 10 && !_containsTransactionKeywords(message)) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  bool _containsTransactionKeywords(String message) {
+    final transactionKeywords = [
+      'jual', 'beli', 'kulakan', 'stok', 'harga', 'rp', 'rupiah',
+      'pcs', 'kg', 'gram', 'liter', 'dus', 'karung', 'ekor',
+      'transaksi', 'pembayaran', 'bayar'
+    ];
+    
+    for (String keyword in transactionKeywords) {
+      if (message.contains(keyword)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  void _showTransactionValidationDialog(ParsedTransaction parsedTransaction, String userMessage) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => TransactionValidationDialog(
+        parsedTransaction: parsedTransaction,
+        originalMessage: userMessage,
+      ),
+    ).then((result) {
+      if (result == true) {
+        _addBotMessage('Transaksi berhasil disimpan! Ada lagi yang mau dicatat?');
+      } else {
+        _addBotMessage('Transaksi dibatalkan. Ada yang bisa saya bantu lagi?');
+      }
     });
-    _voiceAnimationController.stop();
+  }
+
+  void _handleStockQuery(ParsedTransaction parsedTransaction) {
+    // For now, show a simple response. This can be enhanced later.
+    final items = parsedTransaction.items;
+    if (items.isNotEmpty) {
+      final productNames = items.map((item) => item.productName).join(', ');
+      _addBotMessage('Informasi stok untuk $productNames sedang diproses. Fitur ini akan segera tersedia.');
+    } else {
+      _addBotMessage('Mohon sebutkan produk yang ingin dicek stoknya.');
+    }
   }
 
   void _scrollToBottom() {
@@ -532,18 +928,49 @@ class _AIChatScreenState extends State<AIChatScreen>
   }
 
   Widget _buildSuggestionChips() {
-    final suggestions = ChatUtils.getSuggestedQuestions();
+    List<String> suggestions;
+    
+    switch (_currentMode) {
+      case ChatMode.transaction:
+        suggestions = [
+          'jual 5 telur seharga 10rb',
+          'beli beras 2 karung',
+          'cek stok minyak goreng',
+          'tambah stok gula',
+          'berapa keuntungan hari ini?',
+        ];
+        break;
+      case ChatMode.amarthaRag:
+        suggestions = [
+          'Bagaimana cara mengajukan pinjaman?',
+          'Berapa bunga pinjaman UMKM?',
+          'Syarat pinjaman Amartha',
+          'Proses persetujuan berapa lama?',
+          'Cara pembayaran cicilan',
+        ];
+        break;
+      case ChatMode.analytics:
+        suggestions = [
+          'Berapa total penjualan minggu ini?',
+          'Analisis kesehatan kredit saya',
+          'Produk apa yang paling laris?',
+          'Bagaimana tren cashflow saya?',
+          'Berapa keuntungan bulan ini?',
+        ];
+        break;
+    }
+    
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Coba tanyakan:',
+          Text(
+            'Coba tanyakan (${_getModeDisplayName()}):',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Colors.grey,
+              color: _getModeColor(),
             ),
           ),
           const SizedBox(height: 8),
@@ -565,7 +992,7 @@ class _AIChatScreenState extends State<AIChatScreen>
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFF5c2d91).withOpacity(0.2),
+                      color: _getModeColor().withOpacity(0.2),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -592,6 +1019,250 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
+  // Voice recording methods
+  Future<void> _startVoiceRecording() async {
+    try {
+      // Request permissions
+      if (await Permission.microphone.request() != PermissionStatus.granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Izin mikrofon diperlukan untuk merekam suara'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Create audio file path using timestamp
+      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+      final tempDir = Directory.systemTemp;
+      final path = '${tempDir.path}/$fileName';
+
+      // Start recording
+      await _audioRecorder.startRecorder(
+        toFile: path,
+        codec: Codec.aacADTS,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _currentRecordingPath = path;
+      });
+
+      // Show recording indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.mic, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('🎤 Merekam... Lepas untuk mengirim')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 60), // Long duration
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error memulai rekaman: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _stopVoiceRecording() async {
+    try {
+      final path = await _audioRecorder.stopRecorder();
+      
+      setState(() {
+        _isRecording = false;
+      });
+
+      // Hide recording snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (path != null && _currentRecordingPath != null) {
+        // Process the recorded audio
+        _processVoiceRecording(_currentRecordingPath!);
+      }
+      
+      _currentRecordingPath = null;
+      
+    } catch (e) {
+      setState(() {
+        _isRecording = false;
+      });
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error menghentikan rekaman: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _processVoiceRecording(String audioPath) async {
+    setState(() {
+      _messages.add(
+        ChatMessage(
+          text: 'Memproses suara...',
+          isUser: true,
+        ),
+      );
+      _isLoading = true;
+    });
+
+    _scrollToBottom();
+
+    try {
+      String transcript;
+      
+      // Only use voice transcription endpoint for transaction mode
+      if (_currentMode == ChatMode.transaction) {
+        // Call backend voice transcription + parsing service
+        final response = await ChatService.transcribeAndParseVoice(
+          audioPath,
+          sessionId: _currentSession?.sessionId,
+        );
+
+        transcript = response['transcript'] as String? ?? '';
+        final structuredResponse = response['structured_response'] as Map<String, dynamic>?;
+
+        if (transcript.isEmpty) {
+          throw Exception('Tidak ada teks yang terdeteksi dari suara');
+        }
+
+        // Update user message with transcript
+        setState(() {
+          _messages.removeLast(); // Remove "processing" message
+          _messages.add(
+            ChatMessage(
+              text: '🎤 "$transcript"',
+              isUser: true,
+            ),
+          );
+          _isLoading = false;
+        });
+
+        // Check if it's a transaction (category = "stock")
+        if (structuredResponse != null && 
+            structuredResponse['category'] == 'stock' &&
+            structuredResponse['action'] == 'create') {
+          
+          // Parse as transaction and show validation dialog
+          try {
+            final parsedTransaction = ParsedTransaction.fromJson(structuredResponse);
+            
+            final shouldSave = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => TransactionValidationDialog(
+                originalMessage: transcript,
+                parsedTransaction: parsedTransaction,
+              ),
+            );
+
+            if (shouldSave == true) {
+              setState(() {
+                _messages.add(
+                  ChatMessage(
+                    text: 'Transaksi berhasil disimpan! ✅',
+                    isUser: false,
+                  ),
+                );
+              });
+            } else {
+              setState(() {
+                _messages.add(
+                  ChatMessage(
+                    text: 'Transaksi dibatalkan.',
+                    isUser: false,
+                  ),
+                );
+              });
+            }
+          } catch (e) {
+            // If parsing fails, treat as regular chat
+            _handleRegularVoiceChatResponse(transcript, structuredResponse);
+          }
+        } else {
+          // Handle as regular chat - use transcript as the response
+          _handleRegularVoiceChatResponse(transcript, structuredResponse);
+        }
+      } else {
+        // For non-transaction modes, we need a simple transcription
+        // Since we don't have a simple transcription endpoint, we'll use the transaction one
+        // but ignore the structured response and just use the transcript
+        final response = await ChatService.transcribeAndParseVoice(
+          audioPath,
+          sessionId: _currentSession?.sessionId,
+        );
+
+        transcript = response['transcript'] as String? ?? '';
+
+        if (transcript.isEmpty) {
+          throw Exception('Tidak ada teks yang terdeteksi dari suara');
+        }
+
+        // Update user message with transcript
+        setState(() {
+          _messages.removeLast(); // Remove "processing" message
+          _messages.add(
+            ChatMessage(
+              text: '🎤 "$transcript"',
+              isUser: true,
+            ),
+          );
+        });
+
+        // Process transcript through the appropriate mode
+        _handleAIResponse(transcript);
+      }
+
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _messages.removeLast(); // Remove "processing" message
+        _messages.add(
+          ChatMessage(
+            text: 'Error memproses suara: $e',
+            isUser: false,
+          ),
+        );
+      });
+    } finally {
+      // Clean up audio file
+      try {
+        final file = File(audioPath);
+        if (file.existsSync()) {
+          await file.delete();
+        }
+      } catch (e) {
+        print('Error deleting audio file: $e');
+      }
+    }
+  }
+
+  void _handleRegularVoiceChatResponse(String transcript, Map<String, dynamic>? structuredResponse) {
+    setState(() {
+      _isLoading = false;
+      _messages.add(
+        ChatMessage(
+          text: transcript, // Just echo back the transcript
+          isUser: false,
+        ),
+      );
+    });
+    
+    _scrollToBottom();
+  }
+
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
@@ -600,12 +1271,24 @@ class _AIChatScreenState extends State<AIChatScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Pilih Sumber Gambar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5c2d91),
+                  ),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Color(0xFF5c2d91)),
                 title: const Text('Kamera'),
+                subtitle: const Text('Ambil foto langsung'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
+                  _pickImageForAttachment(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -614,9 +1297,10 @@ class _AIChatScreenState extends State<AIChatScreen>
                   color: Color(0xFF5c2d91),
                 ),
                 title: const Text('Galeri'),
+                subtitle: const Text('Pilih dari galeri'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
+                  _pickImageForAttachment(ImageSource.gallery);
                 },
               ),
               ListTile(
@@ -633,7 +1317,7 @@ class _AIChatScreenState extends State<AIChatScreen>
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImageForAttachment(ImageSource source) async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
@@ -644,7 +1328,9 @@ class _AIChatScreenState extends State<AIChatScreen>
       );
 
       if (image != null) {
-        _sendImageMessage(image);
+        setState(() {
+          _attachedImage = image;
+        });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -656,12 +1342,18 @@ class _AIChatScreenState extends State<AIChatScreen>
     }
   }
 
-  void _sendImageMessage(XFile image) {
+
+
+  void _sendImageMessage(XFile image, {String? additionalText}) async {
     // Add user message with image
+    final displayText = additionalText?.isNotEmpty == true 
+        ? '$additionalText' 
+        : 'Gambar dikirim untuk analisis';
+    
     setState(() {
       _messages.add(
         ChatMessage(
-          text: '📷 Gambar dikirim',
+          text: displayText,
           isUser: true,
           imagePath: image.path,
         ),
@@ -671,29 +1363,86 @@ class _AIChatScreenState extends State<AIChatScreen>
 
     _scrollToBottom();
 
-    // Simulate AI response to image
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      // Try to parse transaction using OCR + text
+      final parsedTransaction = await ChatService.parseTransactionWithImage(
+        imageFile: image, // Pass XFile directly
+        message: additionalText?.isNotEmpty == true ? additionalText : null,
+        sessionId: _currentSession?.sessionId,
+        onMimeInfo: (String info) {
+          // Show MIME info in placeholder text
+          if (mounted) {
+            setState(() {
+              _messageController.text = info;
+            });
+            // Clear after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && _messageController.text == info) {
+                setState(() {
+                  _messageController.clear();
+                });
+              }
+            });
+          }
+        },
+      );
+
+      // Show validation dialog
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _messages.add(
-            ChatMessage(
-              text:
-                  'Saya melihat gambar yang Anda kirim! Ini adalah fitur analisis gambar untuk bisnis Anda. Saya bisa membantu menganalisis:\n\n• Produk dalam foto\n• Kondisi stok\n• Kualitas produk\n• Saran untuk display produk\n\nApa yang ingin Anda tanyakan tentang gambar ini?',
-              isUser: false,
-            ),
-          );
         });
-        _scrollToBottom();
+
+        final shouldSave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => TransactionValidationDialog(
+            originalMessage: displayText,
+            parsedTransaction: parsedTransaction,
+          ),
+        );
+
+        if (shouldSave == true) {
+          _addBotMessage('✅ Transaksi berhasil disimpan!');
+        } else {
+          _addBotMessage('ℹ️ Transaksi dibatalkan.');
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        String errorMessage;
+        if (e.toString().contains('category":"other"') || 
+            e.toString().contains('category":"amartha"')) {
+          // Handle non-transaction messages
+          try {
+            final aiResponse = await ChatService.sendChatMessage(
+              additionalText?.isNotEmpty == true 
+                ? 'Gambar dengan pesan: $additionalText' 
+                : 'Analisis gambar ini'
+            );
+            _addBotMessage(aiResponse);
+            return;
+          } catch (chatError) {
+            errorMessage = 'Maaf, saya tidak bisa memproses gambar ini. Pastikan gambar berisi struk belanja atau informasi transaksi yang jelas.';
+          }
+        } else {
+          errorMessage = 'Error memproses gambar: ${e.toString()}';
+        }
+        
+        _addBotMessage('❌ $errorMessage');
+      }
+    }
   }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _voiceAnimationController.dispose();
+    _audioRecorder.closeRecorder();
     super.dispose();
   }
 }
