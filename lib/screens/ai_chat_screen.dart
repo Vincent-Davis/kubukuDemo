@@ -650,25 +650,18 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   const SizedBox(width: 8),
                 // Voice recording button (only in transaction mode)
                 if (_currentMode == ChatMode.transaction)
-                  GestureDetector(
-                    onTapDown: (_) {
-                      // Give immediate feedback when pressed
-                      if (!_isRecording && !_isLoading) {
-                        _startVoiceRecording();
+                  InkWell(
+                    onTap: () {
+                      // Toggle recording on/off
+                      if (!_isLoading) {
+                        if (_isRecording) {
+                          _stopVoiceRecording();
+                        } else {
+                          _startVoiceRecording();
+                        }
                       }
                     },
-                    onTapUp: (_) {
-                      // Stop recording when released
-                      if (_isRecording) {
-                        _stopVoiceRecording();
-                      }
-                    },
-                    onTapCancel: () {
-                      // Also stop if user drags away
-                      if (_isRecording) {
-                        _stopVoiceRecording();
-                      }
-                    },
+                    borderRadius: BorderRadius.circular(24),
                     child: Container(
                       width: 48,
                       height: 48,
