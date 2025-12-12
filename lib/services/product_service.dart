@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/product.dart';
 import '../controller/auth_controller.dart';
+import 'http_service.dart';
 
 class ProductService {
-  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app/api';
   static AuthController? _authController;
   
   // Set the AuthController instance
@@ -31,7 +31,7 @@ class ProductService {
   static Future<List<Product>> getProducts() async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/product/list/?user_id=$userId'),
         headers: _authHeaders,
       );
@@ -55,7 +55,7 @@ class ProductService {
   static Future<Product> createProduct(Product product) async {
     try {
       // print('Creating product...');
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/product/create/'),
         headers: _authHeaders,
         body: json.encode(product.toCreateJson()),
@@ -85,7 +85,7 @@ class ProductService {
 
   static Future<Product> updateProduct(Product product) async {
     try {
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/product/update/${product.id}/'),
         headers: _authHeaders,
         body: json.encode(product.toUpdateJson()),
@@ -109,7 +109,7 @@ class ProductService {
   static Future<void> deleteProduct(int productId) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.delete(
+      final response = await HttpService.delete(
         Uri.parse('$baseUrl/product/delete/$productId/'),
         headers: _authHeaders,
         body: json.encode({

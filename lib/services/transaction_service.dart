@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/transaction.dart';
 import '../controller/auth_controller.dart';
+import 'http_service.dart';
 
 class TransactionService {
-  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app/api';
   static AuthController? _authController;
   
   // Set the AuthController instance
@@ -31,7 +31,7 @@ class TransactionService {
   static Future<List<Transaction>> getTransactions() async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/transaction/list/?user_id=$userId'),
         headers: _authHeaders,
       );
@@ -55,7 +55,7 @@ class TransactionService {
   static Future<Transaction> getTransactionDetail(int transactionId) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/transaction/detail/$transactionId/?user_id=$userId'),
         headers: _authHeaders,
       );
@@ -77,7 +77,7 @@ class TransactionService {
 
   static Future<Transaction> createTransaction(Transaction transaction) async {
     try {
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/transaction/create/'),
         headers: _authHeaders,
         body: jsonEncode(transaction.toCreateJson()),
@@ -104,7 +104,7 @@ class TransactionService {
 
   static Future<Transaction> updateTransaction(Transaction transaction) async {
     try {
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/transaction/update/${transaction.id}/'),
         headers: _authHeaders,
         body: jsonEncode(transaction.toUpdateJson()),
@@ -130,7 +130,7 @@ class TransactionService {
   static Future<void> deleteTransaction(int transactionId) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.delete(
+      final response = await HttpService.delete(
         Uri.parse('$baseUrl/transaction/delete/$transactionId/'),
         headers: _authHeaders,
         body: jsonEncode({

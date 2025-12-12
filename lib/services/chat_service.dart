@@ -7,9 +7,10 @@ import 'package:mime/mime.dart'; // for lookupMimeType
 import '../controller/auth_controller.dart';
 import '../models/chat_session.dart';
 import '../models/parsed_transaction.dart';
+import 'http_service.dart';
 
 class ChatService {
-  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app/api';
   static AuthController? _authController;
 
   // Normalize MIME type to ensure consistency
@@ -43,7 +44,7 @@ class ChatService {
   static Future<ParsedTransaction> parseTransaction(String message, {String? sessionId}) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/gemini/parse-transaction/'),
         headers: _authHeaders,
         body: jsonEncode({
@@ -217,7 +218,7 @@ class ChatService {
   /// Send regular chat message (for non-transaction queries)
   static Future<String> sendChatMessage(String message) async {
     try {
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/gemini/chat/'),
         headers: _authHeaders,
         body: jsonEncode({
@@ -267,7 +268,7 @@ class ChatService {
   static Future<ChatSession> createChatSession({String? title}) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/chat/session/create/'),
         headers: _authHeaders,
         body: jsonEncode({
@@ -295,7 +296,7 @@ class ChatService {
   static Future<List<ChatSession>> getChatSessions() async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/chat/session/list/?user_id=$userId'),
         headers: _authHeaders,
       );
@@ -320,7 +321,7 @@ class ChatService {
   static Future<void> addMessageToSession(String sessionId, String message, String sender) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/chat/message/create/'),
         headers: _authHeaders,
         body: jsonEncode({
@@ -344,7 +345,7 @@ class ChatService {
   static Future<List<ChatMessage>> getSessionMessages(String sessionId) async {
     try {
       final userId = getCurrentUserId();
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/chat/session/$sessionId/?user_id=$userId'),
         headers: _authHeaders,
       );
@@ -372,7 +373,7 @@ class ChatService {
           ? '$baseUrl/rag/chat/$sessionId/' 
           : '$baseUrl/rag/chat/';
 
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse(url),
         headers: _authHeaders,
         body: jsonEncode({
@@ -409,7 +410,7 @@ class ChatService {
   /// Send message to Analytics/Financial chatbot
   static Future<String> sendAnalyticsMessage(String message) async {
     try {
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse('$baseUrl/analytics/chat/'),
         headers: _authHeaders,
         body: jsonEncode({
@@ -619,7 +620,7 @@ class ChatService {
   /// Get cashflow trend data for charts
   static Future<Map<String, dynamic>> getCashflowTrend() async {
     try {
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse('$baseUrl/analytics/cashflow-trend/'),
         headers: _authHeaders,
       );

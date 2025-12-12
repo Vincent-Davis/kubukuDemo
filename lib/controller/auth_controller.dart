@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../app_module/data/model/user.dart';
+import '../services/http_service.dart';
 
 class AuthResponse {
   final String message;
@@ -29,7 +29,7 @@ class AuthController extends ChangeNotifier {
   bool _isLoggedIn = false;
   String _token = '';
   User? _currentUser;
-  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app//api/auth';
+  static const String baseUrl = 'https://kubuku-backend-615566548712.asia-southeast2.run.app/api/auth';
   static const String _tokenKey = 'auth_token';
 
   AuthController() {
@@ -85,13 +85,13 @@ class AuthController extends ChangeNotifier {
       }
 
       final url = '$baseUrl/profile/';
-      final response = await http.get(
+      final response = await HttpService.get(
         Uri.parse(url),
         headers: _authHeaders,
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _decodeResponse(response.body);
         if (data['user'] != null) {
           _isLoggedIn = true;
           _currentUser = User.fromJson(data['user']);
@@ -124,13 +124,26 @@ class AuthController extends ChangeNotifier {
       final registerData = registerRequest.toJson();
       registerData['role'] = 'user';
 
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(registerData),
+        maxRetries: 10,
       );
 
-      final responseData = json.decode(response.body);
+      Map<String, dynamic> responseData;
+      try {
+        responseData = _decodeResponse(response.body);
+      } on FormatException catch (error) {
+        _isLoggedIn = false;
+        _currentUser = null;
+        _token = '';
+        notifyListeners();
+        return AuthResponse(
+          message: 'Registration failed: ${error.message}',
+          error: 'Registration failed',
+        );
+      }
 
       if (response.statusCode == 201 && responseData['token'] != null) {
         _token = responseData['token'];
@@ -157,13 +170,26 @@ class AuthController extends ChangeNotifier {
   Future<AuthResponse> login(UserLoginRequest loginRequest) async {
     try {
       final url = '$baseUrl/login/';
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(loginRequest.toJson()),
+        maxRetries: 10,
       );
 
-      final responseData = json.decode(response.body);
+      Map<String, dynamic> responseData;
+      try {
+        responseData = _decodeResponse(response.body);
+      } on FormatException catch (error) {
+        _isLoggedIn = false;
+        _currentUser = null;
+        _token = '';
+        notifyListeners();
+        return AuthResponse(
+          message: 'Login failed: ${error.message}',
+          error: 'Login failed',
+        );
+      }
 
       if (response.statusCode == 200 && responseData['token'] != null) {
         _token = responseData['token'];
@@ -190,7 +216,7 @@ class AuthController extends ChangeNotifier {
   Future<AuthResponse> logout() async {
     try {
       final url = '$baseUrl/logout/';
-      final response = await http.post(
+      final response = await HttpService.post(
         Uri.parse(url),
         headers: _authHeaders,
       );
@@ -203,7 +229,7 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       
       final responseData = response.statusCode == 200 
-        ? json.decode(response.body)
+        ? _decodeResponse(response.body)
         : {'message': 'Logged out successfully'};
       
       return AuthResponse.fromJson(responseData);
@@ -221,13 +247,13 @@ class AuthController extends ChangeNotifier {
   Future<AuthResponse> updateProfile(UserUpdateRequest updateRequest) async {
     try {
       final url = '$baseUrl/profile/update/';
-      final response = await http.put(
+      final response = await HttpService.put(
         Uri.parse(url),
         headers: _authHeaders,
         body: jsonEncode(updateRequest.toJson()),
       );
 
-      final responseData = json.decode(response.body);
+      final responseData = _decodeResponse(response.body);
 
       if (response.statusCode == 200 && responseData['user'] != null) {
         _currentUser = User.fromJson(responseData['user']);
@@ -270,6 +296,17 @@ class AuthController extends ChangeNotifier {
     _token = '';
     _clearToken();
     notifyListeners();
+  }
+
+  Map<String, dynamic> _decodeResponse(String body) {
+    if (body.isEmpty) {
+      throw const FormatException('Empty response from server');
+    }
+    final decoded = json.decode(body);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw const FormatException('Unexpected response format');
   }
 
   /// Static method to get current user ID
